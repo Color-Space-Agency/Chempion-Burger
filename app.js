@@ -1,5 +1,5 @@
 // ============================================================
-//  Chempion Burger POS — frontend (Supabase, Express'siz)
+//  Chempion Burger POS — frontend (Supabase + Offline Demo Fallback)
 //  Vercel'da statik sayt; ma'lumot Supabase'da (cb_ prefiksli jadvallar).
 // ============================================================
 
@@ -17,7 +17,8 @@ const state = {
   paymentMethod: 'naqd',
   inventory: [],
   recipes: [],
-  currentUser: null
+  currentUser: null,
+  isDemoMode: false
 };
 
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
@@ -28,21 +29,145 @@ function genOrderNumber() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+// ---------- Offline Demo rejimini yoqish ----------
+function enableDemoMode() {
+  state.isDemoMode = true;
+  console.warn("Offline Demo rejimi yoqildi (Supabase jadvallari topilmadi).");
+  
+  // Demo ogohlantirish bannerini qo'shish
+  let banner = document.getElementById('demo-banner');
+  if (!banner) {
+    banner = document.createElement('div');
+    banner.id = 'demo-banner';
+    banner.className = 'demo-banner';
+    banner.innerHTML = `⚠️ <b>Demo Rejim</b> (Supabase'ga ulanmadi. Ma'lumotlar brauzerda saqlanmoqda. Doimiy saqlash uchun <b>supabase_setup.sql</b> ni yuklang)`;
+    document.body.prepend(banner);
+  }
+  
+  // Kategoriyalarni localStorage'ga to'ldirish
+  if (!localStorage.getItem('cb_categories')) {
+    const defaultCategories = [
+      { id: 1, name: "Burgerlar", icon: "🍔", sort_order: 1 },
+      { id: 2, name: "Hot-doglar", icon: "🌭", sort_order: 2 },
+      { id: 3, name: "Non kaboblar", icon: "🌯", sort_order: 3 },
+      { id: 4, name: "Setlar", icon: "🍟", sort_order: 4 },
+      { id: 5, name: "Ichimliklar", icon: "🥤", sort_order: 5 },
+      { id: 6, name: "Souslar", icon: "🥫", sort_order: 6 }
+    ];
+    localStorage.setItem('cb_categories', JSON.stringify(defaultCategories));
+  }
+  
+  // Mahsulotlarni localStorage'ga to'ldirish (Flyer va menyu asosida)
+  if (!localStorage.getItem('cb_products')) {
+    const defaultProducts = [
+      { id: 1, category_id: 1, name: 'Ghamburger', price: 33000, description: 'Bulochka, kotlet, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz' },
+      { id: 2, category_id: 1, name: 'Cheeseburger', price: 35000, description: 'Bulochka, kotlet, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz, sir' },
+      { id: 3, category_id: 1, name: 'Bigburger', price: 50000, description: 'Bulochka, kotlet 2ta, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz' },
+      { id: 4, category_id: 1, name: 'Bigburger Sirli', price: 53000, description: 'Bulochka, kotlet 2ta, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz, sir' },
+      { id: 5, category_id: 1, name: 'KFC Burger', price: 25000, description: 'Bulochka, KFC, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous' },
+      { id: 6, category_id: 3, name: 'Non Kabob', price: 42000, description: 'Qiyma kabob 2ta, non, piyoz, pamidor, firmenniy sous' },
+      { id: 7, category_id: 3, name: 'Non Chicken KFC', price: 30000, description: 'Tovuq, non, svejiy bodring, chisnochniy sous' },
+      { id: 8, category_id: 3, name: 'Non Donar', price: 42000, description: 'Donar go\'sht, non, svejiy bodring, chisnochniy sous' },
+      { id: 9, category_id: 2, name: 'Hot Dog Canadskiy', price: 12000, description: 'Bulochka, sosiska, bodring, pamidor, ketchup, mayonez' },
+      { id: 10, category_id: 2, name: 'Hot Dog Canadskiy 2X', price: 16000, description: 'Bulochka, sosiska 2ta, bodring, pamidor, ketchup, mayonez, chips' },
+      { id: 11, category_id: 2, name: 'Hot Dog Oddiy', price: 10000, description: 'Bulochka, sosiska, sabzi salat, ketchup, mayonez' },
+      { id: 12, category_id: 2, name: 'Hot Dog Oddiy 2X', price: 13000, description: 'Bulochka, sosiska 2ta, sabzi salat, ketchup, mayonez' },
+      { id: 13, category_id: 2, name: 'Go\'shtli Hot-Dog', price: 25000, description: 'Bulochka, go\'sht (donar), bodring, pamidor, firmenniy sous, mayonez, chips' },
+      { id: 14, category_id: 2, name: 'Big Hot-Dog', price: 42000, description: 'Bulochka katta, kotlet 1.5ta, sosiska 2ta, bodring, pamidor, firmenniy sous, mayonez, indeyka' },
+      { id: 15, category_id: 2, name: 'Kabob Hot-Dog', price: 45000, description: 'Bulochka, qiyma, piyoz, firmenniy sous, indeyka' },
+      { id: 16, category_id: 2, name: 'Longer', price: 22000, description: 'Bulochka, KFC (grudka), bodring, pamidor, ketchup, mayonez, salat barg' },
+      { id: 17, category_id: 4, name: 'Set 1', price: 45000, description: 'Ghamburger, fri, Pepsi 0.5l' },
+      { id: 18, category_id: 4, name: 'Set 2', price: 60000, description: 'Non Kabob, fri, Pepsi 0.5l' },
+      { id: 19, category_id: 4, name: 'Set 3', price: 42000, description: 'Go\'shtli hot dog, fri, Pepsi 0.5l' },
+      { id: 20, category_id: 4, name: 'Set 4', price: 43000, description: 'KFC Burger, fri, Pepsi 0.5l' },
+      { id: 21, category_id: 5, name: 'Pepsi 0.5l', price: 8000, description: '' },
+      { id: 22, category_id: 5, name: 'Coca-Cola 0.5l', price: 8000, description: '' },
+      { id: 23, category_id: 5, name: 'Fanta 0.5l', price: 8000, description: '' },
+      { id: 24, category_id: 5, name: 'Suv 0.5l', price: 4000, description: '' },
+      { id: 25, category_id: 5, name: 'Fri kartoshka 110g', price: 15000, description: '' },
+      { id: 26, category_id: 6, name: 'Ketchup', price: 2000, description: '' },
+      { id: 27, category_id: 6, name: 'Mayonez', price: 2000, description: '' }
+    ];
+    localStorage.setItem('cb_products', JSON.stringify(defaultProducts));
+  }
+  
+  // Ombor masalliqlari
+  if (!localStorage.getItem('cb_inventory')) {
+    const defaultInventory = [
+      { id: 1, name: 'Bulochka (burger)', stock: 100, unit: 'dona', min_stock: 20 },
+      { id: 2, name: 'Kotlet (burger)', stock: 150, unit: 'dona', min_stock: 25 },
+      { id: 3, name: 'Bulochka (hot-dog)', stock: 100, unit: 'dona', min_stock: 20 },
+      { id: 4, name: 'Sosiska', stock: 100, unit: 'dona', min_stock: 20 },
+      { id: 5, name: 'Non (kabob)', stock: 80, unit: 'dona', min_stock: 15 },
+      { id: 6, name: 'Tovuq (KFC)', stock: 10, unit: 'kg', min_stock: 2 },
+      { id: 7, name: 'Go\'sht (donar)', stock: 12, unit: 'kg', min_stock: 3 },
+      { id: 8, name: 'Fri (kartoshka)', stock: 15, unit: 'kg', min_stock: 3 },
+      { id: 9, name: 'Pepsi 0.5l', stock: 120, unit: 'dona', min_stock: 20 },
+      { id: 10, name: 'Ketchup', stock: 3000, unit: 'g', min_stock: 500 },
+      { id: 11, name: 'Mayonez', stock: 3000, unit: 'g', min_stock: 500 },
+      { id: 12, name: 'Sabzi salat', stock: 5, unit: 'kg', min_stock: 1 },
+      { id: 13, name: 'Pishloq (sir)', stock: 100, unit: 'dona', min_stock: 20 }
+    ];
+    localStorage.setItem('cb_inventory', JSON.stringify(defaultInventory));
+  }
+  
+  // Retseptlar
+  if (!localStorage.getItem('cb_recipes')) {
+    const defaultRecipes = [
+      { id: 1, product_id: 1, ingredient_id: 1, quantity: 1 },
+      { id: 2, product_id: 1, ingredient_id: 2, quantity: 1 },
+      { id: 3, product_id: 1, ingredient_id: 10, quantity: 10 },
+      { id: 4, product_id: 1, ingredient_id: 11, quantity: 10 },
+      { id: 5, product_id: 2, ingredient_id: 1, quantity: 1 },
+      { id: 6, product_id: 2, ingredient_id: 2, quantity: 1 },
+      { id: 7, product_id: 2, ingredient_id: 13, quantity: 1 },
+      { id: 8, product_id: 2, ingredient_id: 10, quantity: 10 },
+      { id: 9, product_id: 2, ingredient_id: 11, quantity: 10 }
+    ];
+    localStorage.setItem('cb_recipes', JSON.stringify(defaultRecipes));
+  }
+  
+  if (!localStorage.getItem('cb_orders')) {
+    localStorage.setItem('cb_orders', JSON.stringify([]));
+  }
+  if (!localStorage.getItem('cb_order_items')) {
+    localStorage.setItem('cb_order_items', JSON.stringify([]));
+  }
+  
+  // State-ni to'ldirish
+  state.categories = JSON.parse(localStorage.getItem('cb_categories')) || [];
+  state.products = JSON.parse(localStorage.getItem('cb_products')) || [];
+  state.inventory = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+  state.recipes = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+  
+  renderCategories(); renderProducts();
+}
+
 // ---------- Menyuni yuklash ----------
 async function loadMenu() {
-  const [{ data: categories, error: e1 }, { data: products, error: e2 }] = await Promise.all([
-    sb.from('cb_categories').select('*').eq('visible', true).order('sort_order'),
-    sb.from('cb_products').select('*').eq('available', true).order('id'),
-  ]);
-  if (e1 || e2) {
-    console.error('Menyu yuklanmadi:', e1 || e2);
-    document.getElementById('product-grid').innerHTML =
-      `<div style="color:var(--muted);padding:2rem;">Menyu yuklanmadi. Supabase'da <b>cb_</b> jadvallar yaratilganmi? (supabase_setup.sql)<br><small>${(e1 || e2).message}</small></div>`;
-    return;
+  try {
+    const [{ data: categories, error: e1 }, { data: products, error: e2 }] = await Promise.all([
+      sb.from('cb_categories').select('*').eq('visible', true).order('sort_order'),
+      sb.from('cb_products').select('*').eq('available', true).order('id'),
+    ]);
+    if (e1 || e2) {
+      console.warn('Supabase jadvallari topilmadi, Offline Demo rejim ishga tushmoqda...', e1 || e2);
+      enableDemoMode();
+      return;
+    }
+    state.categories = categories || [];
+    state.products = products || [];
+    state.isDemoMode = false;
+    
+    // Demo bannerni yashirish
+    const banner = document.getElementById('demo-banner');
+    if (banner) banner.remove();
+    
+    renderCategories(); renderProducts();
+  } catch (err) {
+    console.warn('Ulanish xatosi, Offline Demo rejim ishga tushmoqda...', err);
+    enableDemoMode();
   }
-  state.categories = categories || [];
-  state.products = products || [];
-  renderCategories(); renderProducts();
 }
 
 function renderCategories() {
@@ -139,11 +264,73 @@ document.getElementById('service-pct').oninput = updateSummary;
 document.getElementById('discount-input').oninput = updateSummary;
 document.getElementById('btn-clear').onclick = () => { state.cart = []; renderCart(); };
 
-// ---------- Tasdiqlash (Supabase'ga saqlash va zaxirani kamaytirish) ----------
+// ---------- Tasdiqlash (Zaxirani kamaytirish va saqlash) ----------
 document.getElementById('btn-confirm').onclick = async () => {
   if (state.cart.length === 0) return;
   const btn = document.getElementById('btn-confirm');
   btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Saqlanmoqda...';
+  
+  // --- OFFLINE DEMO REJIMIDA CHECKOUT ---
+  if (state.isDemoMode) {
+    try {
+      const t = calcTotals();
+      const orderNumber = genOrderNumber();
+      
+      const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+      const newOrder = {
+        id: Date.now(),
+        order_number: orderNumber,
+        type: state.orderType,
+        table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
+        status: 'paid',
+        subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
+        cashier: state.currentUser ? state.currentUser.label : 'Kassir',
+        payment_method: state.paymentMethod,
+        created_at: new Date().toISOString(),
+        paid_at: new Date().toISOString()
+      };
+      orders.push(newOrder);
+      localStorage.setItem('cb_orders', JSON.stringify(orders));
+      
+      const orderItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+      state.cart.forEach(i => {
+        orderItems.push({
+          id: Date.now() + Math.random(),
+          order_id: newOrder.id,
+          product_id: i.product_id,
+          name: i.name,
+          price: i.price,
+          qty: i.qty,
+          subtotal: i.price * i.qty
+        });
+      });
+      localStorage.setItem('cb_order_items', JSON.stringify(orderItems));
+      
+      // localstorage zaxirasini kamaytirish
+      const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+      state.cart.forEach(cartItem => {
+        const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+        prodRecipes.forEach(r => {
+          const ing = inv.find(x => x.id === r.ingredient_id);
+          if (ing) {
+            ing.stock = Math.max(0, parseFloat((ing.stock - (r.quantity * cartItem.qty)).toFixed(2)));
+          }
+        });
+      });
+      localStorage.setItem('cb_inventory', JSON.stringify(inv));
+      state.inventory = inv;
+      renderWarehouseStock();
+      
+      showReceipt(newOrder, t);
+    } catch (e) {
+      alert("Xatolik: " + e.message);
+    } finally {
+      btn.textContent = orig; btn.disabled = state.cart.length === 0;
+    }
+    return;
+  }
+  
+  // --- NORMAL SUPABASE REJIMIDA CHECKOUT ---
   try {
     const t = calcTotals();
     const orderNumber = genOrderNumber();
@@ -224,7 +411,7 @@ document.getElementById('receipt-close').onclick = () => {
   renderCart();
 };
 
-// ---------- Hisobot (Supabase'dan) ----------
+// ---------- Hisobot ----------
 const reportDate = document.getElementById('report-date');
 document.getElementById('open-reports').onclick = () => {
   reportDate.value = new Date().toISOString().slice(0, 10);
@@ -236,14 +423,21 @@ reportDate.onchange = loadReport;
 
 async function loadReport() {
   const date = reportDate.value;
-  const { data: orders, error } = await sb.from('cb_orders').select('*')
-    .eq('status', 'paid')
-    .gte('created_at', date + 'T00:00:00')
-    .lte('created_at', date + 'T23:59:59.999');
   const body = document.getElementById('report-body');
-  if (error) { body.innerHTML = `<div style="color:#e23b2e">Hisobot xatosi: ${error.message}</div>`; return; }
+  let list = [];
+  
+  if (state.isDemoMode) {
+    const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+    list = orders.filter(o => o.status === 'paid' && o.created_at.slice(0, 10) === date);
+  } else {
+    const { data: orders, error } = await sb.from('cb_orders').select('*')
+      .eq('status', 'paid')
+      .gte('created_at', date + 'T00:00:00')
+      .lte('created_at', date + 'T23:59:59.999');
+    if (error) { body.innerHTML = `<div style="color:#e23b2e">Hisobot xatosi: ${error.message}</div>`; return; }
+    list = orders || [];
+  }
 
-  const list = orders || [];
   const revenue = list.reduce((s, o) => s + Number(o.total || 0), 0);
   const service = list.reduce((s, o) => s + Number(o.service_charge || 0), 0);
   const discount = list.reduce((s, o) => s + Number(o.discount || 0), 0);
@@ -253,13 +447,21 @@ async function loadReport() {
   list.forEach(o => { byType[o.type] = byType[o.type] || { count: 0, sum: 0 }; byType[o.type].count++; byType[o.type].sum += Number(o.total || 0); });
   const typesHtml = Object.keys(byType).map(k => `<div class="rrow"><span>${TYPE_LABEL[k] || k}</span><span>${byType[k].count} ta · ${fmt(byType[k].sum)}</span></div>`).join('') || `<div class="rrow"><span>—</span></div>`;
 
-  // Eng ko'p sotilgan (order_items)
+  // Eng ko'p sotilgan
   let topHtml = `<div class="rrow"><span>Sotuv yo'q</span></div>`;
   const ids = list.map(o => o.id);
   if (ids.length) {
-    const { data: items } = await sb.from('cb_order_items').select('name, qty, subtotal').in('order_id', ids);
+    let items = [];
+    if (state.isDemoMode) {
+      const allItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+      items = allItems.filter(it => ids.includes(it.order_id));
+    } else {
+      const { data } = await sb.from('cb_order_items').select('name, qty, subtotal').in('order_id', ids);
+      items = data || [];
+    }
+    
     const agg = {};
-    (items || []).forEach(it => { agg[it.name] = agg[it.name] || { qty: 0, rev: 0 }; agg[it.name].qty += Number(it.qty || 0); agg[it.name].rev += Number(it.subtotal || 0); });
+    items.forEach(it => { agg[it.name] = agg[it.name] || { qty: 0, rev: 0 }; agg[it.name].qty += Number(it.qty || 0); agg[it.name].rev += Number(it.subtotal || 0); });
     const top = Object.entries(agg).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.rev - a.rev).slice(0, 10);
     if (top.length) topHtml = top.map(p => `<div class="rrow"><span>${p.name}</span><span>${p.qty} dona · ${fmt(p.rev)}</span></div>`).join('');
   }
@@ -331,6 +533,12 @@ function handleLogout() {
 
 // ---------- Ombor Ma'lumotlarini yuklash ----------
 async function loadInventory() {
+  if (state.isDemoMode) {
+    state.inventory = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+    renderWarehouseStock();
+    populateRecipeSelectors();
+    return;
+  }
   const { data, error } = await sb.from('cb_inventory').select('*').order('name');
   if (error) console.error('Ombor yuklanmadi:', error);
   state.inventory = data || [];
@@ -339,6 +547,11 @@ async function loadInventory() {
 }
 
 async function loadRecipes() {
+  if (state.isDemoMode) {
+    state.recipes = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+    renderRecipeItems();
+    return;
+  }
   const { data, error } = await sb.from('cb_recipes').select('*');
   if (error) console.error('Retseptlar yuklanmadi:', error);
   state.recipes = data || [];
@@ -409,6 +622,17 @@ async function editIngStock(id) {
     return;
   }
   
+  if (state.isDemoMode) {
+    const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+    const item = inv.find(x => x.id === id);
+    if (item) {
+      item.stock = num;
+      localStorage.setItem('cb_inventory', JSON.stringify(inv));
+    }
+    await loadInventory();
+    return;
+  }
+  
   const { error } = await sb.from('cb_inventory').update({ stock: num }).eq('id', id);
   if (error) {
     alert("Xatolik yuz berdi: " + error.message);
@@ -421,6 +645,20 @@ async function deleteIngredient(id) {
   const ing = state.inventory.find(x => x.id === id);
   if (!ing) return;
   if (!confirm(`Haqiqatan ham "${ing.name}" masallig'ini o'chirmoqchisiz? Barcha retseptlar bog'lanishi ham o'chib ketadi.`)) return;
+  
+  if (state.isDemoMode) {
+    let inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+    inv = inv.filter(x => x.id !== id);
+    localStorage.setItem('cb_inventory', JSON.stringify(inv));
+    
+    let rec = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+    rec = rec.filter(x => x.ingredient_id !== id);
+    localStorage.setItem('cb_recipes', JSON.stringify(rec));
+    
+    await loadInventory();
+    await loadRecipes();
+    return;
+  }
   
   const { error } = await sb.from('cb_inventory').delete().eq('id', id);
   if (error) {
@@ -442,6 +680,18 @@ async function addIngredient() {
   
   if (!name) {
     alert("Masalliq nomini kiriting!");
+    return;
+  }
+  
+  if (state.isDemoMode) {
+    const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+    inv.push({ id: Date.now(), name, stock, unit, min_stock: 5 });
+    localStorage.setItem('cb_inventory', JSON.stringify(inv));
+    
+    nameInput.value = '';
+    stockInput.value = '';
+    unitInput.value = 'dona';
+    await loadInventory();
     return;
   }
   
@@ -523,6 +773,20 @@ async function saveRecipeItem() {
     return;
   }
   
+  if (state.isDemoMode) {
+    const rec = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+    const existing = rec.find(r => r.product_id === productId && r.ingredient_id === ingredientId);
+    if (existing) {
+      existing.quantity = qty;
+    } else {
+      rec.push({ id: Date.now(), product_id: productId, ingredient_id: ingredientId, quantity: qty });
+    }
+    localStorage.setItem('cb_recipes', JSON.stringify(rec));
+    qtyInput.value = '';
+    await loadRecipes();
+    return;
+  }
+  
   const { error } = await sb.from('cb_recipes').upsert({
     product_id: productId,
     ingredient_id: ingredientId,
@@ -539,6 +803,15 @@ async function saveRecipeItem() {
 
 async function deleteRecipeItem(id) {
   if (!confirm("Ushbu masalliqni taom tarkibidan o'chirmoqchisiz?")) return;
+  
+  if (state.isDemoMode) {
+    let rec = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+    rec = rec.filter(x => x.id !== id);
+    localStorage.setItem('cb_recipes', JSON.stringify(rec));
+    await loadRecipes();
+    return;
+  }
+  
   const { error } = await sb.from('cb_recipes').delete().eq('id', id);
   if (error) {
     alert("Xatolik yuz berdi: " + error.message);

@@ -989,3 +989,15 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   font-weight: 700;
   box-shadow: 0 0 10px var(--primary-glow);
 }
+.demo-banner {
+  background: linear-gradient(90deg, #F5A623 0%, #D62828 100%);
+  color: #000000;
+  text-align: center;
+  padding: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: 0.02em;
+  z-index: 999;
+  position: relative;
+}
