@@ -4,6 +4,9 @@
 --  Jadvallar "cb_" prefiksli (boshqa loyiha ma'lumotiga aralashmaydi).
 -- ============================================================================
 
+-- Mavjud bazani yangilash uchun tezkor buyruq (agar jadval oldindan bor bo'lsa):
+alter table cb_orders add column if not exists payment_method text default 'naqd';
+
 -- ---------- Jadvallar ----------
 create table if not exists cb_categories (
   id          bigint primary key generated always as identity,
@@ -33,6 +36,7 @@ create table if not exists cb_orders (
   discount       numeric default 0,
   total          numeric default 0,
   cashier        text default '',
+  payment_method text default 'naqd',
   note           text default '',
   created_at     timestamptz default now(),
   paid_at        timestamptz

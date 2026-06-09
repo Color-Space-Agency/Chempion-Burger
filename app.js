@@ -14,6 +14,7 @@ const state = {
   activeCategory: 'all', 
   cart: [], 
   orderType: 'dine_in',
+  paymentMethod: 'naqd',
   inventory: [],
   recipes: [],
   currentUser: null
@@ -153,6 +154,7 @@ document.getElementById('btn-confirm').onclick = async () => {
       status: 'paid',
       subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
       cashier: state.currentUser ? state.currentUser.label : 'Kassir', paid_at: new Date().toISOString(),
+      payment_method: state.paymentMethod,
     }).select().single();
     if (error) throw error;
 
@@ -190,16 +192,18 @@ document.getElementById('btn-confirm').onclick = async () => {
 
 function showReceipt(order, t) {
   const now = new Date();
+  const PM_LABEL = { naqd: '💵 Naqd', karta: '💳 Karta' };
   const itemsHtml = state.cart.map(i =>
     `<div class="r-line"><span>${i.name} ×${i.qty}</span><b>${fmt(i.price * i.qty)}</b></div>`).join('');
   document.getElementById('receipt-body').innerHTML = `
     <div class="r-store">
-      <h3>🍔 CHEMPION BURGER</h3>
+      <img src="logo.png" alt="Chempion Burger" style="height:48px;margin-bottom:0.4rem;">
       <small>Chek: #${order.order_number}</small>
     </div>
     <div class="r-line"><span>Sana</span><span>${now.toLocaleString('uz-UZ')}</span></div>
     <div class="r-line"><span>Turi</span><span>${TYPE_LABEL[order.type]}</span></div>
     ${order.table_number ? `<div class="r-line"><span>Stol</span><span>№${order.table_number}</span></div>` : ''}
+    <div class="r-line"><span>To'lov usuli</span><span>${PM_LABEL[order.payment_method] || order.payment_method}</span></div>
     <div class="r-items">${itemsHtml}</div>
     <div class="r-line"><span>Oraliq</span><span>${fmt(t.subtotal)}</span></div>
     <div class="r-line"><span>Xizmat haqi</span><span>${fmt(t.service)}</span></div>
@@ -214,6 +218,9 @@ document.getElementById('receipt-close').onclick = () => {
   document.getElementById('table-number').value = '';
   document.getElementById('service-pct').value = '0';
   document.getElementById('discount-input').value = '0';
+  state.paymentMethod = 'naqd';
+  document.querySelectorAll('.pm-btn').forEach(x => x.classList.remove('active'));
+  document.querySelector('.pm-btn[data-method="naqd"]').classList.add('active');
   renderCart();
 };
 
@@ -548,6 +555,13 @@ window.deleteRecipeItem = deleteRecipeItem;
 // --- Hodisa bog'lamalari ---
 document.getElementById('btn-login').onclick = handleLogin;
 document.getElementById('btn-logout').onclick = handleLogout;
+
+document.getElementById('payment-methods').onclick = e => {
+  const b = e.target.closest('.pm-btn'); if (!b) return;
+  document.querySelectorAll('.pm-btn').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  state.paymentMethod = b.dataset.method;
+};
 
 document.getElementById('open-warehouse').onclick = openWarehouse;
 document.getElementById('warehouse-close').onclick = () => document.getElementById('warehouse-modal').classList.remove('open');

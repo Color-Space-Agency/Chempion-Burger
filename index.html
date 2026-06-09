@@ -11,7 +11,10 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🍔 <span>CHEMPION</span> BURGER <small>POS</small></div>
+    <div class="brand">
+      <img src="logo.png" alt="Chempion Burger Logo" class="brand-logo">
+      <small>POS</small>
+    </div>
     
     <div class="order-types" id="order-types">
       <button class="otype active" data-type="dine_in">🍽️ Zal</button>
@@ -50,6 +53,14 @@
         <input type="text" id="table-number" placeholder="masalan: 5">
       </div>
 
+      <div class="payment-row">
+        <label>To'lov usuli</label>
+        <div class="payment-methods" id="payment-methods">
+          <button class="pm-btn active" data-method="naqd">💵 Naqd</button>
+          <button class="pm-btn" data-method="karta">💳 Karta</button>
+        </div>
+      </div>
+
       <div class="cart-items" id="cart-items">
         <div class="cart-empty" id="cart-empty">Savat bo'sh — taom tanlang</div>
       </div>
@@ -80,8 +91,7 @@
   <div class="modal open" id="login-modal">
     <div class="modal-card login-card">
       <div class="login-header">
-        <div class="login-logo">🍔</div>
-        <h2><span>Chempion</span> BURGER</h2>
+        <img src="logo.png" alt="Chempion Burger Logo" class="login-logo-img">
         <p>Tizimga kirish uchun login va parolni kiriting</p>
       </div>
       <div class="login-form">
