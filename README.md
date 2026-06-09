@@ -38,3 +38,4 @@ supabase_setup.sql    baza sxemasi + RLS + namuna menyu (bir marta Run)
 
 ## Keyingi bosqichlar
 Termal printer · rollar (kassir/admin) · stol xaritasi · ombor · Click/Payme to'lov.
+-Ombor kirim va chiqim

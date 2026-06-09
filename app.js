@@ -4,14 +4,21 @@
 // ============================================================
 
 // --- Supabase ulanish ---
-// (eco-sports proyekti qayta ishlatilmoqda; alohida proyekt xohlasangiz shu 2 qatorni almashtiring)
 const SUPABASE_URL = "https://ddqoktwkffnufczhdads.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkcW9rdHdrZmZudWZjemhkYWRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTUyODgsImV4cCI6MjA5NTg3MTI4OH0.IL-C7px7_lcmwQxgXhbNlrmy0NAYN6RmQKmiUQpgq-Q";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const state = {
-  categories: [], products: [], activeCategory: 'all', cart: [], orderType: 'dine_in',
+  categories: [], 
+  products: [], 
+  activeCategory: 'all', 
+  cart: [], 
+  orderType: 'dine_in',
+  inventory: [],
+  recipes: [],
+  currentUser: null
 };
+
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
 const TYPE_LABEL = { dine_in: 'Zal', takeout: 'Olib ketish', delivery: 'Yetkazib berish' };
 
@@ -131,7 +138,7 @@ document.getElementById('service-pct').oninput = updateSummary;
 document.getElementById('discount-input').oninput = updateSummary;
 document.getElementById('btn-clear').onclick = () => { state.cart = []; renderCart(); };
 
-// ---------- Tasdiqlash (Supabase'ga saqlash) ----------
+// ---------- Tasdiqlash (Supabase'ga saqlash va zaxirani kamaytirish) ----------
 document.getElementById('btn-confirm').onclick = async () => {
   if (state.cart.length === 0) return;
   const btn = document.getElementById('btn-confirm');
@@ -145,7 +152,7 @@ document.getElementById('btn-confirm').onclick = async () => {
       table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
       status: 'paid',
       subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
-      cashier: 'Kassir', paid_at: new Date().toISOString(),
+      cashier: state.currentUser ? state.currentUser.label : 'Kassir', paid_at: new Date().toISOString(),
     }).select().single();
     if (error) throw error;
 
@@ -154,6 +161,23 @@ document.getElementById('btn-confirm').onclick = async () => {
     }));
     const { error: e2 } = await sb.from('cb_order_items').insert(items);
     if (e2) throw e2;
+
+    // --- Zaxiralarni kamaytirish (Ombordan avtomatik) ---
+    try {
+      const deductions = {};
+      for (const cartItem of state.cart) {
+        const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+        for (const r of prodRecipes) {
+          deductions[r.ingredient_id] = (deductions[r.ingredient_id] || 0) + (r.quantity * cartItem.qty);
+        }
+      }
+      for (const [ingId, qty] of Object.entries(deductions)) {
+        await sb.rpc('cb_deduct_inventory', { p_ingredient_id: Number(ingId), p_qty: Number(qty) });
+      }
+      await loadInventory();
+    } catch (deductErr) {
+      console.error('Ombordan kamaytirishda xatolik:', deductErr);
+    }
 
     showReceipt(order, t);
   } catch (err) {
@@ -186,15 +210,11 @@ function showReceipt(order, t) {
 document.getElementById('receipt-print').onclick = () => window.print();
 document.getElementById('receipt-close').onclick = () => {
   document.getElementById('receipt-modal').classList.remove('open');
-  if (state.viewingHistoricalReceipt) {
-    state.viewingHistoricalReceipt = false;
-  } else {
-    state.cart = [];
-    document.getElementById('table-number').value = '';
-    document.getElementById('service-pct').value = '0';
-    document.getElementById('discount-input').value = '0';
-    renderCart();
-  }
+  state.cart = [];
+  document.getElementById('table-number').value = '';
+  document.getElementById('service-pct').value = '0';
+  document.getElementById('discount-input').value = '0';
+  renderCart();
 };
 
 // ---------- Hisobot (Supabase'dan) ----------
@@ -248,420 +268,294 @@ async function loadReport() {
     <h4>Eng ko'p sotilgan</h4>${topHtml}`;
 }
 
-// ============================================================
-//  Admin Panel & Login logikasi
-// ============================================================
-
-// --- Long press logo to open login ---
-const logo = document.getElementById('logo-brand');
-let pressTimer = null;
-
-const startPress = (e) => {
-  if (e.type === 'mousedown' && e.button !== 0) return;
-  logo.classList.add('pressing');
-  pressTimer = setTimeout(() => {
-    logo.classList.remove('pressing');
-    document.getElementById('login-modal').classList.add('open');
-    document.getElementById('login-username').focus();
-  }, 3000);
-};
-
-const cancelPress = () => {
-  logo.classList.remove('pressing');
-  if (pressTimer) {
-    clearTimeout(pressTimer);
-    pressTimer = null;
+// ---------- Avtorizatsiya (Login / Logout) ----------
+async function handleLogin() {
+  const userField = document.getElementById('login-username').value.trim();
+  const passField = document.getElementById('login-password').value;
+  const errorDiv = document.getElementById('login-error');
+  
+  errorDiv.style.display = 'none';
+  
+  if (userField.toLowerCase() === 'sotuvchi' && passField === '123') {
+    state.currentUser = { role: 'cashier', label: 'Sotuvchi' };
+  } else if (userField.toLowerCase() === 'admin' && passField === 'admin123') {
+    state.currentUser = { role: 'admin', label: 'Admin' };
+  } else {
+    errorDiv.textContent = "Noto'g'ri login yoki parol!";
+    errorDiv.style.display = 'block';
+    return;
   }
-};
-
-logo.addEventListener('mousedown', startPress);
-logo.addEventListener('touchstart', startPress, { passive: true });
-window.addEventListener('mouseup', cancelPress);
-window.addEventListener('touchend', cancelPress);
-logo.addEventListener('mouseleave', cancelPress);
-
-// --- Login Handling ---
-document.getElementById('login-close').onclick = () => {
+  
+  // Login muvaffaqiyatli
   document.getElementById('login-modal').classList.remove('open');
+  document.getElementById('user-badge').style.display = 'flex';
+  document.getElementById('user-role-label').textContent = state.currentUser.label;
+  
+  if (state.currentUser.role === 'admin') {
+    document.getElementById('open-reports').style.display = 'block';
+    document.getElementById('open-warehouse').style.display = 'block';
+  } else {
+    document.getElementById('open-reports').style.display = 'none';
+    document.getElementById('open-warehouse').style.display = 'none';
+  }
+  
+  // Ma'lumotlarni yuklash
+  await loadMenu();
+  await loadInventory();
+  await loadRecipes();
+}
+
+function handleLogout() {
+  state.currentUser = null;
+  state.cart = [];
+  renderCart();
+  
+  // Login oynasini ko'rsatish
+  document.getElementById('login-modal').classList.add('open');
+  document.getElementById('user-badge').style.display = 'none';
+  document.getElementById('open-reports').style.display = 'none';
+  document.getElementById('open-warehouse').style.display = 'none';
+  
+  // maydonlarni tozalash
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
-  document.getElementById('login-error').textContent = '';
-};
+  document.getElementById('login-error').style.display = 'none';
+}
 
-document.getElementById('login-form').onsubmit = (e) => {
-  e.preventDefault();
-  const user = document.getElementById('login-username').value;
-  const pass = document.getElementById('login-password').value;
+// ---------- Ombor Ma'lumotlarini yuklash ----------
+async function loadInventory() {
+  const { data, error } = await sb.from('cb_inventory').select('*').order('name');
+  if (error) console.error('Ombor yuklanmadi:', error);
+  state.inventory = data || [];
+  renderWarehouseStock();
+  populateRecipeSelectors();
+}
+
+async function loadRecipes() {
+  const { data, error } = await sb.from('cb_recipes').select('*');
+  if (error) console.error('Retseptlar yuklanmadi:', error);
+  state.recipes = data || [];
+  renderRecipeItems();
+}
+
+// ---------- Ombor Tab / UI Boshqaruvi ----------
+function openWarehouse() {
+  document.getElementById('warehouse-modal').classList.add('open');
+  switchWarehouseTab('stock');
+}
+
+function switchWarehouseTab(tab) {
+  document.querySelectorAll('.w-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.w-content').forEach(c => c.classList.remove('active'));
   
-  if (user === 'admin' && pass === '123') {
-    document.getElementById('login-modal').classList.remove('open');
-    document.getElementById('login-username').value = '';
-    document.getElementById('login-password').value = '';
-    document.getElementById('login-error').textContent = '';
-    openAdminPanel();
-  } else {
-    document.getElementById('login-error').textContent = 'Xato login yoki parol!';
-  }
-};
-
-// --- Admin Panel Navigation ---
-const adminState = {
-  activeTab: 'admin-products',
-  orders: []
-};
-
-document.querySelectorAll('.admin-nav-btn').forEach(btn => {
-  btn.onclick = () => {
-    document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.remove('active'));
-    
-    btn.classList.add('active');
-    const tabId = btn.dataset.tab;
-    document.getElementById(tabId).classList.add('active');
-    adminState.activeTab = tabId;
-    renderAdminActiveTab();
-  };
-});
-
-document.getElementById('admin-close').onclick = () => {
-  document.getElementById('admin-modal').classList.remove('open');
-  loadMenu();
-};
-
-async function openAdminPanel() {
-  document.getElementById('admin-modal').classList.add('open');
-  document.getElementById('admin-orders-date').value = new Date().toISOString().slice(0, 10);
-  populateCategorySelect();
-  renderAdminActiveTab();
-}
-
-function renderAdminActiveTab() {
-  if (adminState.activeTab === 'admin-products') {
-    renderAdminProducts();
-  } else if (adminState.activeTab === 'admin-categories') {
-    renderAdminCategories();
-  } else if (adminState.activeTab === 'admin-orders') {
-    loadAdminOrders();
+  if (tab === 'stock') {
+    document.getElementById('w-tab-stock').classList.add('active');
+    document.getElementById('w-content-stock').classList.add('active');
+    renderWarehouseStock();
+  } else if (tab === 'recipes') {
+    document.getElementById('w-tab-recipes').classList.add('active');
+    document.getElementById('w-content-recipes').classList.add('active');
+    populateRecipeSelectors();
+    renderRecipeItems();
   }
 }
 
-function populateCategorySelect() {
-  const select = document.getElementById('form-product-category');
-  select.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-}
-
-// --- Product CRUD ---
-function renderAdminProducts() {
-  const tbody = document.getElementById('admin-products-list');
-  tbody.innerHTML = state.products.map(p => {
-    const cat = state.categories.find(c => c.id === p.category_id);
-    const catName = cat ? `${cat.icon || ''} ${cat.name}` : 'Kategoriya yo\'q';
-    return `
-      <tr>
-        <td><b>${p.name}</b><br><small style="color:var(--muted)">${p.description || ''}</small></td>
-        <td>${catName}</td>
-        <td>${fmt(p.price)}</td>
-        <td>
-          <span class="status-badge ${p.available ? 'available' : 'unavailable'}">
-            ${p.available ? 'Sotuvda' : 'Yo\'q'}
-          </span>
-        </td>
-        <td>
-          <button class="btn-action edit-btn" data-id="${p.id}">✏️</button>
-          <button class="btn-action ${p.available ? 'delete-btn' : ''}" data-id="${p.id}" data-action="toggle-avail">
-            ${p.available ? 'Bloklash' : 'Mavjud qilish'}
-          </button>
-          <button class="btn-action delete-btn" data-id="${p.id}" data-action="delete">❌</button>
-        </td>
-      </tr>
-    `;
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Mahsulotlar yo\'q</td></tr>';
-
-  tbody.querySelectorAll('.btn-action').forEach(btn => {
-    const id = Number(btn.dataset.id);
-    const action = btn.dataset.action;
-    if (action === 'toggle-avail') {
-      btn.onclick = () => toggleProductAvailability(id);
-    } else if (action === 'delete') {
-      btn.onclick = () => deleteProduct(id);
-    } else {
-      btn.onclick = () => openProductForm(id);
-    }
-  });
-}
-
-function openProductForm(productId = null) {
-  const modal = document.getElementById('product-form-modal');
-  const title = document.getElementById('product-form-title');
-  const form = document.getElementById('product-form');
-  form.reset();
-  populateCategorySelect();
-  if (productId) {
-    title.textContent = 'Mahsulotni tahrirlash';
-    const p = state.products.find(x => x.id === productId);
-    if (p) {
-      document.getElementById('form-product-id').value = p.id;
-      document.getElementById('form-product-name').value = p.name;
-      document.getElementById('form-product-category').value = p.category_id;
-      document.getElementById('form-product-price').value = p.price;
-      document.getElementById('form-product-desc').value = p.description || '';
-      document.getElementById('form-product-available').checked = p.available;
-    }
-  } else {
-    title.textContent = 'Yangi mahsulot';
-    document.getElementById('form-product-id').value = '';
-    document.getElementById('form-product-available').checked = true;
-  }
-  modal.classList.add('open');
-}
-
-document.getElementById('btn-new-product').onclick = () => openProductForm();
-document.getElementById('product-form-close').onclick = () => document.getElementById('product-form-modal').classList.remove('open');
-
-document.getElementById('product-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const id = document.getElementById('form-product-id').value;
-  const name = document.getElementById('form-product-name').value;
-  const category_id = Number(document.getElementById('form-product-category').value);
-  const price = Number(document.getElementById('form-product-price').value);
-  const description = document.getElementById('form-product-desc').value;
-  const available = document.getElementById('form-product-available').checked;
+function renderWarehouseStock() {
+  const tbody = document.getElementById('warehouse-stock-body');
+  if (!tbody) return;
   
-  const payload = { category_id, name, price, description, available };
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  try {
-    if (id) {
-      const { error } = await sb.from('cb_products').update(payload).eq('id', Number(id));
-      if (error) throw error;
-    } else {
-      const { error } = await sb.from('cb_products').insert(payload);
-      if (error) throw error;
-    }
-    document.getElementById('product-form-modal').classList.remove('open');
-    await loadMenu();
-    renderAdminProducts();
-  } catch (err) {
-    alert('Saqlashda xatolik yuz berdi: ' + (err.message || err));
-  } finally {
-    btn.disabled = false;
-  }
-};
-
-async function toggleProductAvailability(id) {
-  const p = state.products.find(x => x.id === id);
-  if (!p) return;
-  try {
-    const { error } = await sb.from('cb_products').update({ available: !p.available }).eq('id', id);
-    if (error) throw error;
-    await loadMenu();
-    renderAdminProducts();
-  } catch (err) {
-    alert('Xatolik: ' + (err.message || err));
-  }
-}
-
-async function deleteProduct(id) {
-  const p = state.products.find(x => x.id === id);
-  if (!p) return;
-  if (!confirm(`"${p.name}" mahsulotini o'chirishni tasdiqlaysizmi?`)) return;
-  try {
-    const { error } = await sb.from('cb_products').delete().eq('id', id);
-    if (error) throw error;
-    await loadMenu();
-    renderAdminProducts();
-  } catch (err) {
-    alert('O\'chirishda xatolik: ' + (err.message || err));
-  }
-}
-
-// --- Category CRUD ---
-function renderAdminCategories() {
-  const tbody = document.getElementById('admin-categories-list');
-  tbody.innerHTML = state.categories.map(c => {
-    return `
-      <tr>
-        <td style="font-size: 1.2rem; text-align: center;">${c.icon || '🍔'}</td>
-        <td><b>${c.name}</b></td>
-        <td>${c.sort_order}</td>
-        <td>
-          <span class="status-badge ${c.visible ? 'available' : 'unavailable'}">
-            ${c.visible ? 'Ko\'rinadi' : 'Yashirin'}
-          </span>
-        </td>
-        <td>
-          <button class="btn-action edit-btn" data-id="${c.id}">✏️</button>
-          <button class="btn-action ${c.visible ? 'delete-btn' : ''}" data-id="${c.id}" data-action="toggle-visible">
-            ${c.visible ? 'Yashirish' : 'Ko\'rsatish'}
-          </button>
-          <button class="btn-action delete-btn" data-id="${c.id}" data-action="delete">❌</button>
-        </td>
-      </tr>
-    `;
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Kategoriyalar yo\'q</td></tr>';
-
-  tbody.querySelectorAll('.btn-action').forEach(btn => {
-    const id = Number(btn.dataset.id);
-    const action = btn.dataset.action;
-    if (action === 'toggle-visible') {
-      btn.onclick = () => toggleCategoryVisibility(id);
-    } else if (action === 'delete') {
-      btn.onclick = () => deleteCategory(id);
-    } else {
-      btn.onclick = () => openCategoryForm(id);
-    }
-  });
-}
-
-function openCategoryForm(categoryId = null) {
-  const modal = document.getElementById('category-form-modal');
-  const title = document.getElementById('category-form-title');
-  const form = document.getElementById('category-form');
-  form.reset();
-  if (categoryId) {
-    title.textContent = 'Kategoriyani tahrirlash';
-    const c = state.categories.find(x => x.id === categoryId);
-    if (c) {
-      document.getElementById('form-category-id').value = c.id;
-      document.getElementById('form-category-name').value = c.name;
-      document.getElementById('form-category-icon').value = c.icon || '🍔';
-      document.getElementById('form-category-sort').value = c.sort_order;
-      document.getElementById('form-category-visible').checked = c.visible;
-    }
-  } else {
-    title.textContent = 'Yangi kategoriya';
-    document.getElementById('form-category-id').value = '';
-    document.getElementById('form-category-icon').value = '🍔';
-    document.getElementById('form-category-sort').value = state.categories.length + 1;
-    document.getElementById('form-category-visible').checked = true;
-  }
-  modal.classList.add('open');
-}
-
-document.getElementById('btn-new-category').onclick = () => openCategoryForm();
-document.getElementById('category-form-close').onclick = () => document.getElementById('category-form-modal').classList.remove('open');
-
-document.getElementById('category-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const id = document.getElementById('form-category-id').value;
-  const name = document.getElementById('form-category-name').value;
-  const icon = document.getElementById('form-category-icon').value;
-  const sort_order = Number(document.getElementById('form-category-sort').value);
-  const visible = document.getElementById('form-category-visible').checked;
-  
-  const payload = { name, icon, sort_order, visible };
-  const btn = e.target.querySelector('button[type="submit"]');
-  btn.disabled = true;
-  try {
-    if (id) {
-      const { error } = await sb.from('cb_categories').update(payload).eq('id', Number(id));
-      if (error) throw error;
-    } else {
-      const { error } = await sb.from('cb_categories').insert(payload);
-      if (error) throw error;
-    }
-    document.getElementById('category-form-modal').classList.remove('open');
-    await loadMenu();
-    renderAdminCategories();
-  } catch (err) {
-    alert('Saqlashda xatolik yuz berdi: ' + (err.message || err));
-  } finally {
-    btn.disabled = false;
-  }
-};
-
-async function toggleCategoryVisibility(id) {
-  const c = state.categories.find(x => x.id === id);
-  if (!c) return;
-  try {
-    const { error } = await sb.from('cb_categories').update({ visible: !c.visible }).eq('id', id);
-    if (error) throw error;
-    await loadMenu();
-    renderAdminCategories();
-  } catch (err) {
-    alert('Xatolik: ' + (err.message || err));
-  }
-}
-
-async function deleteCategory(id) {
-  const c = state.categories.find(x => x.id === id);
-  if (!c) return;
-  if (!confirm(`"${c.name}" kategoriyasini o'chirsangiz uning ichidagi barcha mahsulotlar ham o'chib ketadi. Tasdiqlaysizmi?`)) return;
-  try {
-    const { error } = await sb.from('cb_categories').delete().eq('id', id);
-    if (error) throw error;
-    await loadMenu();
-    renderAdminCategories();
-  } catch (err) {
-    alert('O\'chirishda xatolik: ' + (err.message || err));
-  }
-}
-
-// --- Admin Orders List ---
-document.getElementById('admin-orders-date').onchange = loadAdminOrders;
-
-async function loadAdminOrders() {
-  const date = document.getElementById('admin-orders-date').value;
-  const { data: orders, error } = await sb.from('cb_orders')
-    .select('*')
-    .gte('created_at', date + 'T00:00:00')
-    .lte('created_at', date + 'T23:59:59.999')
-    .order('created_at', { ascending: false });
-    
-  const tbody = document.getElementById('admin-orders-list');
-  if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent);text-align:center;">Xatolik: ${error.message}</td></tr>`;
+  if (state.inventory.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Omborda masalliqlar yo'q</td></tr>`;
     return;
   }
   
-  adminState.orders = orders || [];
-  tbody.innerHTML = adminState.orders.map(o => {
-    const time = new Date(o.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+  tbody.innerHTML = state.inventory.map(ing => {
+    let badgeClass = 'badge-success';
+    if (ing.stock <= 0) {
+      badgeClass = 'badge-danger';
+    } else if (ing.stock <= ing.min_stock) {
+      badgeClass = 'badge-warning';
+    }
+    
     return `
       <tr>
-        <td><b>#${o.order_number}</b></td>
-        <td>${TYPE_LABEL[o.type] || o.type}</td>
-        <td>${o.table_number ? 'Stol №' + o.table_number : '—'}</td>
-        <td style="color:var(--primary);font-weight:700;">${fmt(o.total)}</td>
-        <td>${time}</td>
+        <td><b>${ing.name}</b></td>
+        <td><span class="badge ${badgeClass}">${ing.stock}</span></td>
+        <td>${ing.unit}</td>
         <td>
-          <button class="btn-action view-order-btn" data-id="${o.id}">👁️ Chek</button>
+          <button class="btn-inline-edit" onclick="editIngStock(${ing.id})" title="Miqdorni tahrirlash">✏️</button>
+          <button class="btn-inline-del" onclick="deleteIngredient(${ing.id})" title="O'chirish">❌</button>
         </td>
       </tr>
     `;
-  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Ushbu sanada buyurtmalar yo\'q</td></tr>';
-
-  tbody.querySelectorAll('.view-order-btn').forEach(btn => {
-    btn.onclick = () => showAdminOrderReceipt(Number(btn.dataset.id));
-  });
+  }).join('');
 }
 
-async function showAdminOrderReceipt(orderId) {
-  const order = adminState.orders.find(o => o.id === orderId);
-  if (!order) return;
-  const { data: items, error } = await sb.from('cb_order_items').select('*').eq('order_id', orderId);
-  if (error) {
-    alert('Chek tafsilotlarini yuklashda xatolik: ' + error.message);
+async function editIngStock(id) {
+  const ing = state.inventory.find(x => x.id === id);
+  if (!ing) return;
+  const newVal = prompt(`"${ing.name}" uchun yangi qoldiq miqdorini kiriting (${ing.unit}):`, ing.stock);
+  if (newVal === null) return;
+  const num = parseFloat(newVal);
+  if (isNaN(num)) {
+    alert("Miqdor son bo'lishi kerak!");
     return;
   }
-  const oldCart = state.cart;
-  state.cart = items.map(i => ({
-    product_id: i.product_id,
-    name: i.name,
-    price: i.price,
-    qty: i.qty
-  }));
-  const totals = {
-    subtotal: order.subtotal,
-    service: order.service_charge,
-    discount: order.discount,
-    total: order.total
-  };
-  state.viewingHistoricalReceipt = true;
-  showReceipt(order, totals);
-  state.cart = oldCart;
+  
+  const { error } = await sb.from('cb_inventory').update({ stock: num }).eq('id', id);
+  if (error) {
+    alert("Xatolik yuz berdi: " + error.message);
+  } else {
+    await loadInventory();
+  }
 }
+
+async function deleteIngredient(id) {
+  const ing = state.inventory.find(x => x.id === id);
+  if (!ing) return;
+  if (!confirm(`Haqiqatan ham "${ing.name}" masallig'ini o'chirmoqchisiz? Barcha retseptlar bog'lanishi ham o'chib ketadi.`)) return;
+  
+  const { error } = await sb.from('cb_inventory').delete().eq('id', id);
+  if (error) {
+    alert("Xatolik yuz berdi: " + error.message);
+  } else {
+    await loadInventory();
+    await loadRecipes();
+  }
+}
+
+async function addIngredient() {
+  const nameInput = document.getElementById('new-ing-name');
+  const stockInput = document.getElementById('new-ing-stock');
+  const unitInput = document.getElementById('new-ing-unit');
+  
+  const name = nameInput.value.trim();
+  const stock = parseFloat(stockInput.value) || 0;
+  const unit = unitInput.value.trim() || 'dona';
+  
+  if (!name) {
+    alert("Masalliq nomini kiriting!");
+    return;
+  }
+  
+  const { error } = await sb.from('cb_inventory').insert({ name, stock, unit });
+  if (error) {
+    alert("Xatolik yuz berdi: " + error.message);
+  } else {
+    nameInput.value = '';
+    stockInput.value = '';
+    unitInput.value = 'dona';
+    await loadInventory();
+  }
+}
+
+// ---------- Taom Retseptlari Boshqaruvi ----------
+function populateRecipeSelectors() {
+  const prodSelect = document.getElementById('recipe-product-select');
+  const ingSelect = document.getElementById('recipe-ing-select');
+  
+  if (prodSelect) {
+    const currentVal = prodSelect.value;
+    prodSelect.innerHTML = state.products.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    if (currentVal && state.products.some(p => p.id == currentVal)) {
+      prodSelect.value = currentVal;
+    }
+  }
+  
+  if (ingSelect) {
+    ingSelect.innerHTML = state.inventory.map(i => `<option value="${i.id}">${i.name} (${i.unit})</option>`).join('');
+  }
+}
+
+function renderRecipeItems() {
+  const prodSelect = document.getElementById('recipe-product-select');
+  const tbody = document.getElementById('recipe-items-body');
+  if (!prodSelect || !tbody) return;
+  
+  const productId = Number(prodSelect.value);
+  if (!productId) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Mahsulot tanlanmagan</td></tr>`;
+    return;
+  }
+  
+  const prodRecipes = state.recipes.filter(r => r.product_id === productId);
+  if (prodRecipes.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Ushbu taom uchun tarkib kiritilmagan</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = prodRecipes.map(r => {
+    const ing = state.inventory.find(i => i.id === r.ingredient_id);
+    const ingName = ing ? ing.name : 'Noma\'lum';
+    const ingUnit = ing ? ing.unit : '';
+    
+    return `
+      <tr>
+        <td><b>${ingName}</b></td>
+        <td>${r.quantity}</td>
+        <td>${ingUnit}</td>
+        <td>
+          <button class="btn-inline-del" onclick="deleteRecipeItem(${r.id})" title="Tarkibdan o'chirish">❌</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+async function saveRecipeItem() {
+  const prodSelect = document.getElementById('recipe-product-select');
+  const ingSelect = document.getElementById('recipe-ing-select');
+  const qtyInput = document.getElementById('recipe-ing-qty');
+  
+  const productId = Number(prodSelect.value);
+  const ingredientId = Number(ingSelect.value);
+  const qty = parseFloat(qtyInput.value);
+  
+  if (!productId || !ingredientId || isNaN(qty) || qty <= 0) {
+    alert("Iltimos, masalliq va to'g'ri miqdorni kiriting!");
+    return;
+  }
+  
+  const { error } = await sb.from('cb_recipes').upsert({
+    product_id: productId,
+    ingredient_id: ingredientId,
+    quantity: qty
+  }, { onConflict: 'product_id,ingredient_id' });
+  
+  if (error) {
+    alert("Xatolik yuz berdi: " + error.message);
+  } else {
+    qtyInput.value = '';
+    await loadRecipes();
+  }
+}
+
+async function deleteRecipeItem(id) {
+  if (!confirm("Ushbu masalliqni taom tarkibidan o'chirmoqchisiz?")) return;
+  const { error } = await sb.from('cb_recipes').delete().eq('id', id);
+  if (error) {
+    alert("Xatolik yuz berdi: " + error.message);
+  } else {
+    await loadRecipes();
+  }
+}
+
+// Global qilish (HTML onClick uchun)
+window.editIngStock = editIngStock;
+window.deleteIngredient = deleteIngredient;
+window.deleteRecipeItem = deleteRecipeItem;
+
+// --- Hodisa bog'lamalari ---
+document.getElementById('btn-login').onclick = handleLogin;
+document.getElementById('btn-logout').onclick = handleLogout;
+
+document.getElementById('open-warehouse').onclick = openWarehouse;
+document.getElementById('warehouse-close').onclick = () => document.getElementById('warehouse-modal').classList.remove('open');
+document.getElementById('w-tab-stock').onclick = () => switchWarehouseTab('stock');
+document.getElementById('w-tab-recipes').onclick = () => switchWarehouseTab('recipes');
+document.getElementById('btn-add-ingredient').onclick = addIngredient;
+document.getElementById('recipe-product-select').onchange = renderRecipeItems;
+document.getElementById('btn-save-recipe-item').onclick = saveRecipeItem;
 
 // ---------- Ishga tushirish ----------
-loadMenu();
 renderCart();
