@@ -54,11 +54,14 @@ alter table cb_products    enable row level security;
 alter table cb_orders      enable row level security;
 alter table cb_order_items enable row level security;
 
--- Menyu: faqat o'qish
+-- Menyu: to'liq huquqlar (Admin panel ishlashi uchun)
 drop policy if exists cb_cat_read on cb_categories;
-create policy cb_cat_read on cb_categories for select to anon, authenticated using (true);
+drop policy if exists cb_cat_all on cb_categories;
+create policy cb_cat_all on cb_categories for all to anon, authenticated using (true) with check (true);
+
 drop policy if exists cb_prod_read on cb_products;
-create policy cb_prod_read on cb_products for select to anon, authenticated using (true);
+drop policy if exists cb_prod_all on cb_products;
+create policy cb_prod_all on cb_products for all to anon, authenticated using (true) with check (true);
 
 -- Buyurtmalar: o'qish + yozish + yangilash (DELETE yo'q — xavfsizlik)
 drop policy if exists cb_ord_read on cb_orders;

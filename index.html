@@ -8,7 +8,7 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">🍔 <span>CHEMPION</span> BURGER <small>POS</small></div>
+    <div class="brand" id="logo-brand">🍔 <span>CHEMPION</span> BURGER <small>POS</small></div>
     <div class="order-types" id="order-types">
       <button class="otype active" data-type="dine_in">🍽️ Zal</button>
       <button class="otype" data-type="takeout">🥡 Olib ketish</button>
@@ -82,6 +82,181 @@
       </div>
       <input type="date" id="report-date" class="report-date">
       <div id="report-body" class="report-body"></div>
+    </div>
+  </div>
+
+  <!-- Login modal -->
+  <div class="modal" id="login-modal">
+    <div class="modal-card login-card">
+      <div class="modal-head">
+        <h2>🔒 Tizimga kirish (Admin)</h2>
+        <button class="modal-x" id="login-close">✕</button>
+      </div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="login-username">Login</label>
+          <input type="text" id="login-username" required placeholder="admin">
+        </div>
+        <div class="form-group">
+          <label for="login-password">Parol</label>
+          <input type="password" id="login-password" required placeholder="•••">
+        </div>
+        <div id="login-error" class="login-error-msg"></div>
+        <button type="submit" class="btn-confirm login-btn">Kirish</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Admin modal -->
+  <div class="modal" id="admin-modal">
+    <div class="modal-card admin-card">
+      <div class="modal-head">
+        <h2>⚙️ Admin Panel</h2>
+        <button class="modal-x" id="admin-close">✕</button>
+      </div>
+      
+      <div class="admin-layout">
+        <!-- Admin navigatsiya -->
+        <div class="admin-nav">
+          <button class="admin-nav-btn active" data-tab="admin-products">📦 Mahsulotlar</button>
+          <button class="admin-nav-btn" data-tab="admin-categories">📁 Kategoriyalar</button>
+          <button class="admin-nav-btn" data-tab="admin-orders">📜 Buyurtmalar</button>
+        </div>
+        
+        <!-- Admin kontent -->
+        <div class="admin-content">
+          <!-- Mahsulotlar tab -->
+          <div class="admin-tab-pane active" id="admin-products">
+            <div class="pane-header">
+              <h3>Mahsulotlar ro'yxati</h3>
+              <button class="btn-confirm btn-sm" id="btn-new-product">+ Yangi mahsulot</button>
+            </div>
+            <div class="admin-table-container">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Nomi</th>
+                    <th>Kategoriya</th>
+                    <th>Narxi</th>
+                    <th>Holati</th>
+                    <th>Amallar</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-products-list"></tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Kategoriyalar tab -->
+          <div class="admin-tab-pane" id="admin-categories">
+            <div class="pane-header">
+              <h3>Kategoriyalar</h3>
+              <button class="btn-confirm btn-sm" id="btn-new-category">+ Yangi kategoriya</button>
+            </div>
+            <div class="admin-table-container">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Icon</th>
+                    <th>Kategoriya nomi</th>
+                    <th>Tartib raqami</th>
+                    <th>Holati</th>
+                    <th>Amallar</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-categories-list"></tbody>
+              </table>
+            </div>
+          </div>
+          
+          <!-- Buyurtmalar tab -->
+          <div class="admin-tab-pane" id="admin-orders">
+            <div class="pane-header">
+              <h3>Oxirgi buyurtmalar</h3>
+              <input type="date" id="admin-orders-date" class="report-date" style="margin-bottom:0;">
+            </div>
+            <div class="admin-table-container">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID / Chek №</th>
+                    <th>Turi</th>
+                    <th>Zal/Stol</th>
+                    <th>Tushum</th>
+                    <th>Sana</th>
+                    <th>Amal</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-orders-list"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mahsulot qo'shish/tahrirlash modal -->
+  <div class="modal" id="product-form-modal">
+    <div class="modal-card form-card">
+      <div class="modal-head">
+        <h2 id="product-form-title">Yangi mahsulot</h2>
+        <button class="modal-x" id="product-form-close">✕</button>
+      </div>
+      <form id="product-form">
+        <input type="hidden" id="form-product-id">
+        <div class="form-group">
+          <label>Nomi *</label>
+          <input type="text" id="form-product-name" required>
+        </div>
+        <div class="form-group">
+          <label>Kategoriya *</label>
+          <select id="form-product-category" required></select>
+        </div>
+        <div class="form-group">
+          <label>Narxi (so'm) *</label>
+          <input type="number" id="form-product-price" required min="0">
+        </div>
+        <div class="form-group">
+          <label>Tavsifi</label>
+          <textarea id="form-product-desc" rows="2"></textarea>
+        </div>
+        <div class="form-group row">
+          <label for="form-product-available">Sotuvda mavjud</label>
+          <input type="checkbox" id="form-product-available" checked>
+        </div>
+        <button type="submit" class="btn-confirm form-btn">Saqlash</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Kategoriya qo'shish/tahrirlash modal -->
+  <div class="modal" id="category-form-modal">
+    <div class="modal-card form-card">
+      <div class="modal-head">
+        <h2 id="category-form-title">Yangi kategoriya</h2>
+        <button class="modal-x" id="category-form-close">✕</button>
+      </div>
+      <form id="category-form">
+        <input type="hidden" id="form-category-id">
+        <div class="form-group">
+          <label>Nomi *</label>
+          <input type="text" id="form-category-name" required>
+        </div>
+        <div class="form-group">
+          <label>Emodzi (Icon) *</label>
+          <input type="text" id="form-category-icon" placeholder="🍔" required>
+        </div>
+        <div class="form-group">
+          <label>Tartib raqami *</label>
+          <input type="number" id="form-category-sort" value="0" required>
+        </div>
+        <div class="form-group row">
+          <label for="form-category-visible">Ko'rinadigan</label>
+          <input type="checkbox" id="form-category-visible" checked>
+        </div>
+        <button type="submit" class="btn-confirm form-btn">Saqlash</button>
+      </form>
     </div>
   </div>
 

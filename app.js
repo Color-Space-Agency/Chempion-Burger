@@ -186,11 +186,15 @@ function showReceipt(order, t) {
 document.getElementById('receipt-print').onclick = () => window.print();
 document.getElementById('receipt-close').onclick = () => {
   document.getElementById('receipt-modal').classList.remove('open');
-  state.cart = [];
-  document.getElementById('table-number').value = '';
-  document.getElementById('service-pct').value = '0';
-  document.getElementById('discount-input').value = '0';
-  renderCart();
+  if (state.viewingHistoricalReceipt) {
+    state.viewingHistoricalReceipt = false;
+  } else {
+    state.cart = [];
+    document.getElementById('table-number').value = '';
+    document.getElementById('service-pct').value = '0';
+    document.getElementById('discount-input').value = '0';
+    renderCart();
+  }
 };
 
 // ---------- Hisobot (Supabase'dan) ----------
@@ -242,6 +246,420 @@ async function loadReport() {
     </div>
     <h4>Buyurtma turlari</h4>${typesHtml}
     <h4>Eng ko'p sotilgan</h4>${topHtml}`;
+}
+
+// ============================================================
+//  Admin Panel & Login logikasi
+// ============================================================
+
+// --- Long press logo to open login ---
+const logo = document.getElementById('logo-brand');
+let pressTimer = null;
+
+const startPress = (e) => {
+  if (e.type === 'mousedown' && e.button !== 0) return;
+  logo.classList.add('pressing');
+  pressTimer = setTimeout(() => {
+    logo.classList.remove('pressing');
+    document.getElementById('login-modal').classList.add('open');
+    document.getElementById('login-username').focus();
+  }, 3000);
+};
+
+const cancelPress = () => {
+  logo.classList.remove('pressing');
+  if (pressTimer) {
+    clearTimeout(pressTimer);
+    pressTimer = null;
+  }
+};
+
+logo.addEventListener('mousedown', startPress);
+logo.addEventListener('touchstart', startPress, { passive: true });
+window.addEventListener('mouseup', cancelPress);
+window.addEventListener('touchend', cancelPress);
+logo.addEventListener('mouseleave', cancelPress);
+
+// --- Login Handling ---
+document.getElementById('login-close').onclick = () => {
+  document.getElementById('login-modal').classList.remove('open');
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+};
+
+document.getElementById('login-form').onsubmit = (e) => {
+  e.preventDefault();
+  const user = document.getElementById('login-username').value;
+  const pass = document.getElementById('login-password').value;
+  
+  if (user === 'admin' && pass === '123') {
+    document.getElementById('login-modal').classList.remove('open');
+    document.getElementById('login-username').value = '';
+    document.getElementById('login-password').value = '';
+    document.getElementById('login-error').textContent = '';
+    openAdminPanel();
+  } else {
+    document.getElementById('login-error').textContent = 'Xato login yoki parol!';
+  }
+};
+
+// --- Admin Panel Navigation ---
+const adminState = {
+  activeTab: 'admin-products',
+  orders: []
+};
+
+document.querySelectorAll('.admin-nav-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.admin-nav-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.admin-tab-pane').forEach(p => p.classList.remove('active'));
+    
+    btn.classList.add('active');
+    const tabId = btn.dataset.tab;
+    document.getElementById(tabId).classList.add('active');
+    adminState.activeTab = tabId;
+    renderAdminActiveTab();
+  };
+});
+
+document.getElementById('admin-close').onclick = () => {
+  document.getElementById('admin-modal').classList.remove('open');
+  loadMenu();
+};
+
+async function openAdminPanel() {
+  document.getElementById('admin-modal').classList.add('open');
+  document.getElementById('admin-orders-date').value = new Date().toISOString().slice(0, 10);
+  populateCategorySelect();
+  renderAdminActiveTab();
+}
+
+function renderAdminActiveTab() {
+  if (adminState.activeTab === 'admin-products') {
+    renderAdminProducts();
+  } else if (adminState.activeTab === 'admin-categories') {
+    renderAdminCategories();
+  } else if (adminState.activeTab === 'admin-orders') {
+    loadAdminOrders();
+  }
+}
+
+function populateCategorySelect() {
+  const select = document.getElementById('form-product-category');
+  select.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+// --- Product CRUD ---
+function renderAdminProducts() {
+  const tbody = document.getElementById('admin-products-list');
+  tbody.innerHTML = state.products.map(p => {
+    const cat = state.categories.find(c => c.id === p.category_id);
+    const catName = cat ? `${cat.icon || ''} ${cat.name}` : 'Kategoriya yo\'q';
+    return `
+      <tr>
+        <td><b>${p.name}</b><br><small style="color:var(--muted)">${p.description || ''}</small></td>
+        <td>${catName}</td>
+        <td>${fmt(p.price)}</td>
+        <td>
+          <span class="status-badge ${p.available ? 'available' : 'unavailable'}">
+            ${p.available ? 'Sotuvda' : 'Yo\'q'}
+          </span>
+        </td>
+        <td>
+          <button class="btn-action edit-btn" data-id="${p.id}">✏️</button>
+          <button class="btn-action ${p.available ? 'delete-btn' : ''}" data-id="${p.id}" data-action="toggle-avail">
+            ${p.available ? 'Bloklash' : 'Mavjud qilish'}
+          </button>
+          <button class="btn-action delete-btn" data-id="${p.id}" data-action="delete">❌</button>
+        </td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Mahsulotlar yo\'q</td></tr>';
+
+  tbody.querySelectorAll('.btn-action').forEach(btn => {
+    const id = Number(btn.dataset.id);
+    const action = btn.dataset.action;
+    if (action === 'toggle-avail') {
+      btn.onclick = () => toggleProductAvailability(id);
+    } else if (action === 'delete') {
+      btn.onclick = () => deleteProduct(id);
+    } else {
+      btn.onclick = () => openProductForm(id);
+    }
+  });
+}
+
+function openProductForm(productId = null) {
+  const modal = document.getElementById('product-form-modal');
+  const title = document.getElementById('product-form-title');
+  const form = document.getElementById('product-form');
+  form.reset();
+  populateCategorySelect();
+  if (productId) {
+    title.textContent = 'Mahsulotni tahrirlash';
+    const p = state.products.find(x => x.id === productId);
+    if (p) {
+      document.getElementById('form-product-id').value = p.id;
+      document.getElementById('form-product-name').value = p.name;
+      document.getElementById('form-product-category').value = p.category_id;
+      document.getElementById('form-product-price').value = p.price;
+      document.getElementById('form-product-desc').value = p.description || '';
+      document.getElementById('form-product-available').checked = p.available;
+    }
+  } else {
+    title.textContent = 'Yangi mahsulot';
+    document.getElementById('form-product-id').value = '';
+    document.getElementById('form-product-available').checked = true;
+  }
+  modal.classList.add('open');
+}
+
+document.getElementById('btn-new-product').onclick = () => openProductForm();
+document.getElementById('product-form-close').onclick = () => document.getElementById('product-form-modal').classList.remove('open');
+
+document.getElementById('product-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('form-product-id').value;
+  const name = document.getElementById('form-product-name').value;
+  const category_id = Number(document.getElementById('form-product-category').value);
+  const price = Number(document.getElementById('form-product-price').value);
+  const description = document.getElementById('form-product-desc').value;
+  const available = document.getElementById('form-product-available').checked;
+  
+  const payload = { category_id, name, price, description, available };
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    if (id) {
+      const { error } = await sb.from('cb_products').update(payload).eq('id', Number(id));
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('cb_products').insert(payload);
+      if (error) throw error;
+    }
+    document.getElementById('product-form-modal').classList.remove('open');
+    await loadMenu();
+    renderAdminProducts();
+  } catch (err) {
+    alert('Saqlashda xatolik yuz berdi: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+async function toggleProductAvailability(id) {
+  const p = state.products.find(x => x.id === id);
+  if (!p) return;
+  try {
+    const { error } = await sb.from('cb_products').update({ available: !p.available }).eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    renderAdminProducts();
+  } catch (err) {
+    alert('Xatolik: ' + (err.message || err));
+  }
+}
+
+async function deleteProduct(id) {
+  const p = state.products.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`"${p.name}" mahsulotini o'chirishni tasdiqlaysizmi?`)) return;
+  try {
+    const { error } = await sb.from('cb_products').delete().eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    renderAdminProducts();
+  } catch (err) {
+    alert('O\'chirishda xatolik: ' + (err.message || err));
+  }
+}
+
+// --- Category CRUD ---
+function renderAdminCategories() {
+  const tbody = document.getElementById('admin-categories-list');
+  tbody.innerHTML = state.categories.map(c => {
+    return `
+      <tr>
+        <td style="font-size: 1.2rem; text-align: center;">${c.icon || '🍔'}</td>
+        <td><b>${c.name}</b></td>
+        <td>${c.sort_order}</td>
+        <td>
+          <span class="status-badge ${c.visible ? 'available' : 'unavailable'}">
+            ${c.visible ? 'Ko\'rinadi' : 'Yashirin'}
+          </span>
+        </td>
+        <td>
+          <button class="btn-action edit-btn" data-id="${c.id}">✏️</button>
+          <button class="btn-action ${c.visible ? 'delete-btn' : ''}" data-id="${c.id}" data-action="toggle-visible">
+            ${c.visible ? 'Yashirish' : 'Ko\'rsatish'}
+          </button>
+          <button class="btn-action delete-btn" data-id="${c.id}" data-action="delete">❌</button>
+        </td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted)">Kategoriyalar yo\'q</td></tr>';
+
+  tbody.querySelectorAll('.btn-action').forEach(btn => {
+    const id = Number(btn.dataset.id);
+    const action = btn.dataset.action;
+    if (action === 'toggle-visible') {
+      btn.onclick = () => toggleCategoryVisibility(id);
+    } else if (action === 'delete') {
+      btn.onclick = () => deleteCategory(id);
+    } else {
+      btn.onclick = () => openCategoryForm(id);
+    }
+  });
+}
+
+function openCategoryForm(categoryId = null) {
+  const modal = document.getElementById('category-form-modal');
+  const title = document.getElementById('category-form-title');
+  const form = document.getElementById('category-form');
+  form.reset();
+  if (categoryId) {
+    title.textContent = 'Kategoriyani tahrirlash';
+    const c = state.categories.find(x => x.id === categoryId);
+    if (c) {
+      document.getElementById('form-category-id').value = c.id;
+      document.getElementById('form-category-name').value = c.name;
+      document.getElementById('form-category-icon').value = c.icon || '🍔';
+      document.getElementById('form-category-sort').value = c.sort_order;
+      document.getElementById('form-category-visible').checked = c.visible;
+    }
+  } else {
+    title.textContent = 'Yangi kategoriya';
+    document.getElementById('form-category-id').value = '';
+    document.getElementById('form-category-icon').value = '🍔';
+    document.getElementById('form-category-sort').value = state.categories.length + 1;
+    document.getElementById('form-category-visible').checked = true;
+  }
+  modal.classList.add('open');
+}
+
+document.getElementById('btn-new-category').onclick = () => openCategoryForm();
+document.getElementById('category-form-close').onclick = () => document.getElementById('category-form-modal').classList.remove('open');
+
+document.getElementById('category-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('form-category-id').value;
+  const name = document.getElementById('form-category-name').value;
+  const icon = document.getElementById('form-category-icon').value;
+  const sort_order = Number(document.getElementById('form-category-sort').value);
+  const visible = document.getElementById('form-category-visible').checked;
+  
+  const payload = { name, icon, sort_order, visible };
+  const btn = e.target.querySelector('button[type="submit"]');
+  btn.disabled = true;
+  try {
+    if (id) {
+      const { error } = await sb.from('cb_categories').update(payload).eq('id', Number(id));
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('cb_categories').insert(payload);
+      if (error) throw error;
+    }
+    document.getElementById('category-form-modal').classList.remove('open');
+    await loadMenu();
+    renderAdminCategories();
+  } catch (err) {
+    alert('Saqlashda xatolik yuz berdi: ' + (err.message || err));
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+async function toggleCategoryVisibility(id) {
+  const c = state.categories.find(x => x.id === id);
+  if (!c) return;
+  try {
+    const { error } = await sb.from('cb_categories').update({ visible: !c.visible }).eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    renderAdminCategories();
+  } catch (err) {
+    alert('Xatolik: ' + (err.message || err));
+  }
+}
+
+async function deleteCategory(id) {
+  const c = state.categories.find(x => x.id === id);
+  if (!c) return;
+  if (!confirm(`"${c.name}" kategoriyasini o'chirsangiz uning ichidagi barcha mahsulotlar ham o'chib ketadi. Tasdiqlaysizmi?`)) return;
+  try {
+    const { error } = await sb.from('cb_categories').delete().eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    renderAdminCategories();
+  } catch (err) {
+    alert('O\'chirishda xatolik: ' + (err.message || err));
+  }
+}
+
+// --- Admin Orders List ---
+document.getElementById('admin-orders-date').onchange = loadAdminOrders;
+
+async function loadAdminOrders() {
+  const date = document.getElementById('admin-orders-date').value;
+  const { data: orders, error } = await sb.from('cb_orders')
+    .select('*')
+    .gte('created_at', date + 'T00:00:00')
+    .lte('created_at', date + 'T23:59:59.999')
+    .order('created_at', { ascending: false });
+    
+  const tbody = document.getElementById('admin-orders-list');
+  if (error) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--accent);text-align:center;">Xatolik: ${error.message}</td></tr>`;
+    return;
+  }
+  
+  adminState.orders = orders || [];
+  tbody.innerHTML = adminState.orders.map(o => {
+    const time = new Date(o.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' });
+    return `
+      <tr>
+        <td><b>#${o.order_number}</b></td>
+        <td>${TYPE_LABEL[o.type] || o.type}</td>
+        <td>${o.table_number ? 'Stol №' + o.table_number : '—'}</td>
+        <td style="color:var(--primary);font-weight:700;">${fmt(o.total)}</td>
+        <td>${time}</td>
+        <td>
+          <button class="btn-action view-order-btn" data-id="${o.id}">👁️ Chek</button>
+        </td>
+      </tr>
+    `;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--muted)">Ushbu sanada buyurtmalar yo\'q</td></tr>';
+
+  tbody.querySelectorAll('.view-order-btn').forEach(btn => {
+    btn.onclick = () => showAdminOrderReceipt(Number(btn.dataset.id));
+  });
+}
+
+async function showAdminOrderReceipt(orderId) {
+  const order = adminState.orders.find(o => o.id === orderId);
+  if (!order) return;
+  const { data: items, error } = await sb.from('cb_order_items').select('*').eq('order_id', orderId);
+  if (error) {
+    alert('Chek tafsilotlarini yuklashda xatolik: ' + error.message);
+    return;
+  }
+  const oldCart = state.cart;
+  state.cart = items.map(i => ({
+    product_id: i.product_id,
+    name: i.name,
+    price: i.price,
+    qty: i.qty
+  }));
+  const totals = {
+    subtotal: order.subtotal,
+    service: order.service_charge,
+    discount: order.discount,
+    total: order.total
+  };
+  state.viewingHistoricalReceipt = true;
+  showReceipt(order, totals);
+  state.cart = oldCart;
 }
 
 // ---------- Ishga tushirish ----------
