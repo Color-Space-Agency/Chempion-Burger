@@ -7,6 +7,14 @@
 -- Mavjud bazani yangilash uchun tezkor buyruq (agar jadval oldindan bor bo'lsa):
 alter table cb_orders add column if not exists payment_method text default 'naqd';
 
+-- TOZALASH (Eski ma'lumotlarni tozalab, yangi menyuni yuklash uchun):
+truncate table cb_order_items cascade;
+truncate table cb_orders cascade;
+truncate table cb_recipes cascade;
+truncate table cb_products cascade;
+truncate table cb_categories cascade;
+truncate table cb_inventory cascade;
+
 -- ---------- Jadvallar ----------
 create table if not exists cb_categories (
   id          bigint primary key generated always as identity,
@@ -112,76 +120,159 @@ begin
 end;
 $$;
 
--- ---------- Namuna menyu (faqat bo'sh bo'lsa) ----------
-insert into cb_categories (name, icon, sort_order)
-select * from (values
+-- ---------- Real Kategoriyalar Yuklash ----------
+insert into cb_categories (name, icon, sort_order) values
   ('Burgerlar', '🍔', 1),
   ('Hot-doglar', '🌭', 2),
-  ('Setlar', '🍟', 3),
-  ('Garnirlar', '🍗', 4),
+  ('Non kaboblar', '🌯', 3),
+  ('Setlar', '🍟', 4),
   ('Ichimliklar', '🥤', 5),
-  ('Souslar', '🥫', 6),
-  ('Shirinliklar', '🍰', 7)
-) as v(name, icon, sort_order)
-where not exists (select 1 from cb_categories);
+  ('Souslar', '🥫', 6);
 
--- Mahsulotlar (kategoriya nomi bo'yicha bog'lanadi)
+-- ---------- Real Mahsulotlar Yuklash (Flyer & Menu asosida) ----------
 insert into cb_products (category_id, name, price, description)
 select c.id, p.name, p.price, p.description
 from (values
-  ('Burgerlar', 'Chempion Burger', 39000, 'Ikki qavat mol go''shti, chedder, maxsus sous'),
-  ('Burgerlar', 'Cheeseburger', 28000, 'Klassik pishloqli burger'),
-  ('Burgerlar', 'Double Burger', 45000, 'Ikki qavat go''sht, ikki pishloq'),
-  ('Burgerlar', 'Chicken Burger', 32000, 'Tovuq filesi, salat, sous'),
-  ('Burgerlar', 'Spicy Burger', 34000, 'Achchiq sous bilan'),
-  ('Hot-doglar', 'Klassik Hot-dog', 18000, 'Sosiska, bulochka, ketchup, mayonez'),
-  ('Setlar', 'Chempion Set', 55000, 'Burger + fri + ichimlik'),
-  ('Setlar', 'Klassik Set', 42000, 'Cheeseburger + fri + cola'),
-  ('Garnirlar', 'Fri kartoshka', 15000, 'Yirik bo''lakli'),
-  ('Garnirlar', 'Nuggets (6 dona)', 22000, 'Tovuq nuggets'),
-  ('Garnirlar', 'Onion rings', 18000, 'Piyoz halqalari'),
-  ('Ichimliklar', 'Coca-Cola 0.5', 8000, ''),
-  ('Ichimliklar', 'Fanta 0.5', 8000, ''),
-  ('Ichimliklar', 'Suv 0.5', 4000, ''),
-  ('Ichimliklar', 'Choy', 5000, ''),
-  ('Ichimliklar', 'Kofe', 12000, ''),
+  -- Burgerlar
+  ('Burgerlar', 'Ghamburger', 33000, 'Bulochka, kotlet, bodring, pamidor, sho''r bodring, salat barg, firmenniy sous, qizil piyoz'),
+  ('Burgerlar', 'Cheeseburger', 35000, 'Bulochka, kotlet, bodring, pamidor, sho''r bodring, salat barg, firmenniy sous, qizil piyoz, sir'),
+  ('Burgerlar', 'Bigburger', 50000, 'Bulochka, kotlet 2ta, bodring, pamidor, sho''r bodring, salat barg, firmenniy sous, qizil piyoz'),
+  ('Burgerlar', 'Bigburger Sirli', 53000, 'Bulochka, kotlet 2ta, bodring, pamidor, sho''r bodring, salat barg, firmenniy sous, qizil piyoz, sir'),
+  ('Burgerlar', 'KFC Burger', 25000, 'Bulochka, KFC, bodring, pamidor, sho''r bodring, salat barg, firmenniy sous'),
+  
+  -- Non Kaboblar
+  ('Non kaboblar', 'Non Kabob', 42000, 'Qiyma kabob 2ta, non, piyoz, pamidor, firmenniy sous'),
+  ('Non kaboblar', 'Non Chicken KFC', 30000, 'Tovuq, non, svejiy bodring, chisnochniy sous'),
+  ('Non kaboblar', 'Non Donar', 42000, 'Donar go''sht, non, svejiy bodring, chisnochniy sous'),
+  
+  -- Hot-doglar
+  ('Hot-doglar', 'Hot Dog Canadskiy', 12000, 'Bulochka, sosiska, bodring, pamidor, ketchup, mayonez'),
+  ('Hot-doglar', 'Hot Dog Canadskiy 2X', 16000, 'Bulochka, sosiska 2ta, bodring, pamidor, ketchup, mayonez, chips'),
+  ('Hot-doglar', 'Hot Dog Oddiy', 10000, 'Bulochka, sosiska, sabzi salat, ketchup, mayonez'),
+  ('Hot-doglar', 'Hot Dog Oddiy 2X', 13000, 'Bulochka, sosiska 2ta, sabzi salat, ketchup, mayonez'),
+  ('Hot-doglar', 'Go''shtli Hot-Dog', 25000, 'Bulochka, go''sht (donar), bodring, pamidor, firmenniy sous, mayonez, chips'),
+  ('Hot-doglar', 'Big Hot-Dog', 42000, 'Bulochka katta, kotlet 1.5ta, sosiska 2ta, bodring, pamidor, firmenniy sous, mayonez, indeyka'),
+  ('Hot-doglar', 'Kabob Hot-Dog', 45000, 'Bulochka, qiyma, piyoz, firmenniy sous, indeyka'),
+  ('Hot-doglar', 'Longer', 22000, 'Bulochka, KFC (grudka), bodring, pamidor, ketchup, mayonez, salat barg'),
+  
+  -- Setlar
+  ('Setlar', 'Set 1', 45000, 'Ghamburger, fri, Pepsi 0.5l'),
+  ('Setlar', 'Set 2', 60000, 'Non Kabob, fri, Pepsi 0.5l'),
+  ('Setlar', 'Set 3', 42000, 'Go''shtli hot dog, fri, Pepsi 0.5l'),
+  ('Setlar', 'Set 4', 43000, 'KFC Burger, fri, Pepsi 0.5l'),
+  
+  -- Ichimliklar & Garnirlar
+  ('Ichimliklar', 'Pepsi 0.5l', 8000, ''),
+  ('Ichimliklar', 'Coca-Cola 0.5l', 8000, ''),
+  ('Ichimliklar', 'Fanta 0.5l', 8000, ''),
+  ('Ichimliklar', 'Suv 0.5l', 4000, ''),
+  ('Ichimliklar', 'Fri kartoshka 110g', 15000, ''),
+  
+  -- Souslar
   ('Souslar', 'Ketchup', 2000, ''),
-  ('Souslar', 'Mayonez', 2000, ''),
-  ('Souslar', 'Cheese sous', 5000, ''),
-  ('Shirinliklar', 'Muzqaymoq', 12000, ''),
-  ('Shirinliklar', 'Brauni', 15000, 'Shokoladli')
+  ('Souslar', 'Mayonez', 2000, '')
 ) as p(cat, name, price, description)
-join cb_categories c on c.name = p.cat
-where not exists (select 1 from cb_products);
+join cb_categories c on c.name = p.cat;
 
--- ---------- Default Inventory Items ----------
-insert into cb_inventory (name, stock, unit, min_stock)
-select * from (values
-  ('Bulochka (hot-dog)', 50, 'dona', 10),
-  ('Sosiska', 50, 'dona', 10),
+-- ---------- Real Ombor Masalliqlari Yuklash ----------
+insert into cb_inventory (name, stock, unit, min_stock) values
   ('Bulochka (burger)', 100, 'dona', 20),
-  ('Mol go''shti (kotlet)', 100, 'dona', 20),
-  ('Chedder pishlog''i', 100, 'dona', 20),
-  ('Ketchup', 2000, 'g', 500),
-  ('Mayonez', 2000, 'g', 500),
-  ('Maxsus sous', 1500, 'g', 300)
-) as v(name, stock, unit, min_stock)
-where not exists (select 1 from cb_inventory);
+  ('Kotlet (burger)', 150, 'dona', 25),
+  ('Bulochka (hot-dog)', 100, 'dona', 20),
+  ('Sosiska', 100, 'dona', 20),
+  ('Non (kabob)', 80, 'dona', 15),
+  ('Tovuq (KFC)', 10, 'kg', 2),
+  ('Go''sht (donar)', 12, 'kg', 3),
+  ('Fri (kartoshka)', 15, 'kg', 3),
+  ('Pepsi 0.5l', 120, 'dona', 20),
+  ('Ketchup', 3000, 'g', 500),
+  ('Mayonez', 3000, 'g', 500),
+  ('Sabzi salat', 5, 'kg', 1),
+  ('Pishloq (sir)', 100, 'dona', 20);
 
--- ---------- Default Recipes Setup ----------
+-- ---------- Real Taomlar Retseptlari Setup ----------
 insert into cb_recipes (product_id, ingredient_id, quantity)
 select p.id, i.id, r.qty
 from (values
-  ('Klassik Hot-dog', 'Bulochka (hot-dog)', 1),
-  ('Klassik Hot-dog', 'Sosiska', 1),
-  ('Klassik Hot-dog', 'Ketchup', 15),
-  ('Klassik Hot-dog', 'Mayonez', 15),
-  ('Chempion Burger', 'Bulochka (burger)', 1),
-  ('Chempion Burger', 'Mol go''shti (kotlet)', 2),
-  ('Chempion Burger', 'Chedder pishlog''i', 1),
-  ('Chempion Burger', 'Ketchup', 10),
-  ('Chempion Burger', 'Mayonez', 10)
+  -- Burgerlar
+  ('Ghamburger', 'Bulochka (burger)', 1),
+  ('Ghamburger', 'Kotlet (burger)', 1),
+  ('Ghamburger', 'Ketchup', 10),
+  ('Ghamburger', 'Mayonez', 10),
+  ('Cheeseburger', 'Bulochka (burger)', 1),
+  ('Cheeseburger', 'Kotlet (burger)', 1),
+  ('Cheeseburger', 'Pishloq (sir)', 1),
+  ('Cheeseburger', 'Ketchup', 10),
+  ('Cheeseburger', 'Mayonez', 10),
+  ('Bigburger', 'Bulochka (burger)', 1),
+  ('Bigburger', 'Kotlet (burger)', 2),
+  ('Bigburger', 'Ketchup', 15),
+  ('Bigburger', 'Mayonez', 15),
+  ('Bigburger Sirli', 'Bulochka (burger)', 1),
+  ('Bigburger Sirli', 'Kotlet (burger)', 2),
+  ('Bigburger Sirli', 'Pishloq (sir)', 1),
+  ('Bigburger Sirli', 'Ketchup', 15),
+  ('Bigburger Sirli', 'Mayonez', 15),
+  ('KFC Burger', 'Bulochka (burger)', 1),
+  ('KFC Burger', 'Tovuq (KFC)', 0.12),
+  ('KFC Burger', 'Mayonez', 15),
+  
+  -- Hot-doglar
+  ('Hot Dog Canadskiy', 'Bulochka (hot-dog)', 1),
+  ('Hot Dog Canadskiy', 'Sosiska', 1),
+  ('Hot Dog Canadskiy', 'Ketchup', 15),
+  ('Hot Dog Canadskiy', 'Mayonez', 15),
+  ('Hot Dog Canadskiy 2X', 'Bulochka (hot-dog)', 1),
+  ('Hot Dog Canadskiy 2X', 'Sosiska', 2),
+  ('Hot Dog Canadskiy 2X', 'Ketchup', 20),
+  ('Hot Dog Canadskiy 2X', 'Mayonez', 20),
+  ('Hot Dog Oddiy', 'Bulochka (hot-dog)', 1),
+  ('Hot Dog Oddiy', 'Sosiska', 1),
+  ('Hot Dog Oddiy', 'Sabzi salat', 0.05),
+  ('Hot Dog Oddiy', 'Ketchup', 10),
+  ('Hot Dog Oddiy', 'Mayonez', 10),
+  ('Hot Dog Oddiy 2X', 'Bulochka (hot-dog)', 1),
+  ('Hot Dog Oddiy 2X', 'Sosiska', 2),
+  ('Hot Dog Oddiy 2X', 'Sabzi salat', 0.06),
+  ('Hot Dog Oddiy 2X', 'Ketchup', 15),
+  ('Hot Dog Oddiy 2X', 'Mayonez', 15),
+  ('Go''shtli Hot-Dog', 'Bulochka (hot-dog)', 1),
+  ('Go''shtli Hot-Dog', 'Go''sht (donar)', 0.08),
+  ('Go''shtli Hot-Dog', 'Mayonez', 15),
+  ('Big Hot-Dog', 'Bulochka (hot-dog)', 1),
+  ('Big Hot-Dog', 'Sosiska', 2),
+  ('Big Hot-Dog', 'Kotlet (burger)', 1.5),
+  ('Big Hot-Dog', 'Mayonez', 20),
+  ('Longer', 'Bulochka (hot-dog)', 1),
+  ('Longer', 'Tovuq (KFC)', 0.1),
+  ('Longer', 'Ketchup', 10),
+  ('Longer', 'Mayonez', 10),
+  
+  -- Non Kaboblar
+  ('Non Kabob', 'Non (kabob)', 1),
+  ('Non Kabob', 'Kotlet (burger)', 2),
+  ('Non Chicken KFC', 'Non (kabob)', 1),
+  ('Non Chicken KFC', 'Tovuq (KFC)', 0.12),
+  ('Non Donar', 'Non (kabob)', 1),
+  ('Non Donar', 'Go''sht (donar)', 0.1),
+  
+  -- Setlar
+  ('Set 1', 'Bulochka (burger)', 1),
+  ('Set 1', 'Kotlet (burger)', 1),
+  ('Set 1', 'Fri (kartoshka)', 0.11),
+  ('Set 1', 'Pepsi 0.5l', 1),
+  ('Set 2', 'Non (kabob)', 1),
+  ('Set 2', 'Kotlet (burger)', 2),
+  ('Set 2', 'Fri (kartoshka)', 0.11),
+  ('Set 2', 'Pepsi 0.5l', 1),
+  ('Set 3', 'Bulochka (hot-dog)', 1),
+  ('Set 3', 'Go''sht (donar)', 0.08),
+  ('Set 3', 'Fri (kartoshka)', 0.11),
+  ('Set 3', 'Pepsi 0.5l', 1),
+  ('Set 4', 'Bulochka (burger)', 1),
+  ('Set 4', 'Tovuq (KFC)', 0.12),
+  ('Set 4', 'Fri (kartoshka)', 0.11),
+  ('Set 4', 'Pepsi 0.5l', 1)
 ) as r(prod_name, ing_name, qty)
 join cb_products p on p.name = r.prod_name
-join cb_inventory i on i.name = r.ing_name
-where not exists (select 1 from cb_recipes);
+join cb_inventory i on i.name = r.ing_name;
