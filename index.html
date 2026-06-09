@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chempion Burger — POS</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">🍔 <span>CHEMPION</span> BURGER <small>POS</small></div>
+    <div class="order-types" id="order-types">
+      <button class="otype active" data-type="dine_in">🍽️ Zal</button>
+      <button class="otype" data-type="takeout">🥡 Olib ketish</button>
+      <button class="otype" data-type="delivery">🛵 Yetkazib berish</button>
+    </div>
+    <button class="btn-report" id="open-reports">📊 Hisobot</button>
+  </header>
+
+  <main class="layout">
+    <!-- Chap: menyu -->
+    <section class="menu-panel">
+      <div class="cat-tabs" id="cat-tabs"></div>
+      <div class="product-grid" id="product-grid"></div>
+    </section>
+
+    <!-- O'ng: savat / chek -->
+    <aside class="cart-panel">
+      <div class="cart-head">
+        <h2>Buyurtma</h2>
+        <span class="cart-type" id="cart-type-label">Zal</span>
+      </div>
+
+      <div class="table-row" id="table-row">
+        <label>Stol №</label>
+        <input type="text" id="table-number" placeholder="masalan: 5">
+      </div>
+
+      <div class="cart-items" id="cart-items">
+        <div class="cart-empty" id="cart-empty">Savat bo'sh — taom tanlang</div>
+      </div>
+
+      <div class="cart-summary">
+        <div class="sum-row"><span>Oraliq</span><b id="sum-subtotal">0 so'm</b></div>
+        <div class="sum-row">
+          <span>Xizmat haqi
+            <input type="number" id="service-pct" value="0" min="0" max="100" class="pct-input"> %
+          </span>
+          <b id="sum-service">0 so'm</b>
+        </div>
+        <div class="sum-row">
+          <span>Chegirma <input type="number" id="discount-input" value="0" min="0" class="disc-input"> so'm</span>
+          <b id="sum-discount">0 so'm</b>
+        </div>
+        <div class="sum-row total"><span>JAMI</span><b id="sum-total">0 so'm</b></div>
+      </div>
+
+      <div class="cart-actions">
+        <button class="btn-clear" id="btn-clear">Tozalash</button>
+        <button class="btn-confirm" id="btn-confirm">✅ Tasdiqlash</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Chek modal -->
+  <div class="modal" id="receipt-modal">
+    <div class="modal-card receipt">
+      <div id="receipt-body"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="receipt-print">🖨️ Chop etish</button>
+        <button class="btn-confirm" id="receipt-close">Yangi buyurtma</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hisobot modal -->
+  <div class="modal" id="reports-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>📊 Kunlik Hisobot</h2>
+        <button class="modal-x" id="reports-close">✕</button>
+      </div>
+      <input type="date" id="report-date" class="report-date">
+      <div id="report-body" class="report-body"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>

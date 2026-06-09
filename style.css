@@ -1,0 +1,137 @@
+/* ============================================================
+   Chempion Burger POS — asosiy uslub (poydevor; keyin dizaynga moslanadi)
+   ============================================================ */
+:root {
+  --bg: #15110e;
+  --surface: #211a15;
+  --surface-2: #2c231c;
+  --line: #3a2e24;
+  --primary: #f5a623;   /* sariq (burger) */
+  --accent: #e23b2e;    /* qizil */
+  --text: #f5efe7;
+  --muted: #a89a8c;
+  --green: #2ecc71;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text); height: 100vh; overflow: hidden;
+}
+
+/* Topbar */
+.topbar {
+  display: flex; align-items: center; gap: 1.5rem;
+  padding: 0.8rem 1.2rem; background: var(--surface); border-bottom: 2px solid var(--line);
+}
+.brand { font-size: 1.3rem; font-weight: 800; letter-spacing: 0.5px; }
+.brand span { color: var(--primary); }
+.brand small { color: var(--muted); font-size: 0.7rem; font-weight: 600; }
+.order-types { display: flex; gap: 0.5rem; margin-left: auto; }
+.otype {
+  padding: 0.55rem 1rem; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); border-radius: 10px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+  transition: all 0.15s;
+}
+.otype:hover { border-color: var(--primary); }
+.otype.active { background: var(--primary); color: #1a1208; border-color: var(--primary); }
+.btn-report {
+  padding: 0.55rem 1rem; border: 1px solid var(--line); background: var(--surface-2);
+  color: var(--text); border-radius: 10px; cursor: pointer; font-weight: 600;
+}
+.btn-report:hover { border-color: var(--primary); }
+
+/* Layout */
+.layout { display: grid; grid-template-columns: 1fr 380px; height: calc(100vh - 61px); }
+
+/* Menyu */
+.menu-panel { padding: 1rem; overflow-y: auto; }
+.cat-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.cat-tab {
+  padding: 0.5rem 1rem; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 0.88rem;
+  white-space: nowrap;
+}
+.cat-tab.active { background: var(--accent); border-color: var(--accent); }
+
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.8rem; }
+.product-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 1rem 0.8rem; cursor: pointer; transition: all 0.12s; text-align: left;
+}
+.product-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+.product-card:active { transform: scale(0.97); }
+.product-card .p-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
+.product-card .p-desc { color: var(--muted); font-size: 0.72rem; min-height: 1.6em; line-height: 1.2; }
+.product-card .p-price { color: var(--primary); font-weight: 800; margin-top: 0.5rem; font-size: 1rem; }
+
+/* Savat */
+.cart-panel {
+  background: var(--surface); border-left: 2px solid var(--line);
+  display: flex; flex-direction: column; padding: 1rem;
+}
+.cart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+.cart-head h2 { font-size: 1.15rem; }
+.cart-type { background: var(--surface-2); color: var(--primary); padding: 0.25rem 0.7rem; border-radius: 8px; font-size: 0.8rem; font-weight: 700; }
+.table-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.6rem; }
+.table-row label { color: var(--muted); font-size: 0.85rem; }
+.table-row input { flex: 1; padding: 0.4rem 0.6rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); }
+
+.cart-items { flex: 1; overflow-y: auto; margin-bottom: 0.6rem; }
+.cart-empty { color: var(--muted); text-align: center; padding: 2rem 0; font-size: 0.9rem; }
+.cart-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.ci-name { flex: 1; font-size: 0.88rem; font-weight: 600; }
+.ci-name small { display: block; color: var(--muted); font-weight: 400; }
+.ci-qty { display: flex; align-items: center; gap: 0.3rem; }
+.ci-qty button { width: 26px; height: 26px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); border-radius: 6px; cursor: pointer; font-size: 1rem; line-height: 1; }
+.ci-qty span { min-width: 22px; text-align: center; font-weight: 700; }
+.ci-sum { min-width: 80px; text-align: right; font-weight: 700; color: var(--primary); font-size: 0.85rem; }
+
+.cart-summary { border-top: 2px solid var(--line); padding-top: 0.7rem; }
+.sum-row { display: flex; justify-content: space-between; align-items: center; padding: 0.25rem 0; font-size: 0.9rem; color: var(--muted); }
+.sum-row b { color: var(--text); }
+.sum-row.total { font-size: 1.15rem; margin-top: 0.4rem; padding-top: 0.5rem; border-top: 1px solid var(--line); }
+.sum-row.total span, .sum-row.total b { color: var(--text); font-weight: 800; }
+.sum-row.total b { color: var(--primary); }
+.pct-input, .disc-input { width: 52px; padding: 0.15rem 0.3rem; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text); font-size: 0.8rem; }
+
+.cart-actions { display: flex; gap: 0.6rem; margin-top: 0.8rem; }
+.btn-clear { flex: 0 0 90px; padding: 0.8rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; cursor: pointer; font-weight: 600; }
+.btn-confirm { flex: 1; padding: 0.8rem; background: var(--green); border: none; color: #06281a; border-radius: 10px; cursor: pointer; font-weight: 800; font-size: 1rem; }
+.btn-confirm:hover { filter: brightness(1.08); }
+.btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 50; }
+.modal.open { display: flex; }
+.modal-card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 1.5rem; width: 420px; max-width: 92vw; max-height: 88vh; overflow-y: auto; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.modal-x { background: none; border: none; color: var(--muted); font-size: 1.3rem; cursor: pointer; }
+.modal-actions { display: flex; gap: 0.6rem; margin-top: 1.2rem; }
+.btn-secondary { flex: 1; padding: 0.7rem; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); border-radius: 10px; cursor: pointer; font-weight: 600; }
+
+/* Chek */
+.receipt { width: 340px; }
+.r-store { text-align: center; border-bottom: 2px dashed var(--line); padding-bottom: 0.7rem; margin-bottom: 0.7rem; }
+.r-store h3 { font-size: 1.2rem; }
+.r-store small { color: var(--muted); }
+.r-line { display: flex; justify-content: space-between; font-size: 0.85rem; padding: 0.15rem 0; }
+.r-items { border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); padding: 0.5rem 0; margin: 0.5rem 0; }
+.r-total { display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800; }
+.r-total b { color: var(--primary); }
+
+/* Hisobot */
+.report-date { padding: 0.5rem; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; color: var(--text); margin-bottom: 1rem; }
+.report-body .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 1rem; }
+.report-body .kpi { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 0.7rem; }
+.report-body .kpi small { color: var(--muted); font-size: 0.72rem; }
+.report-body .kpi b { display: block; font-size: 1.05rem; margin-top: 0.2rem; }
+.report-body h4 { margin: 0.8rem 0 0.4rem; font-size: 0.9rem; }
+.report-body .rrow { display: flex; justify-content: space-between; padding: 0.3rem 0; border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+@media (max-width: 820px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  .cart-panel { border-left: none; border-top: 2px solid var(--line); max-height: 45vh; }
+}
