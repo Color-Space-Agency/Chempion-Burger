@@ -198,14 +198,24 @@ function renderProducts() {
       : '';
     return `
       <div class="product-card" data-id="${p.id}">
+        <div class="drag-handle" title="Tartibni o'zgartirish">☰</div>
         ${imgHtml}
         <div class="p-name">${p.name}</div>
         <div class="p-desc">${descHtml}</div>
         <div class="p-price">${fmt(p.price)}</div>
       </div>`;
   }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
-  applyMenuLayout();
-  grid.querySelectorAll('.product-card').forEach(card => card.onclick = () => addToCart(Number(card.dataset.id)));
+  
+  setupDragAndDrop();
+  
+  grid.querySelectorAll('.product-card').forEach(card => {
+    card.onclick = (e) => {
+      if (e.target.classList.contains('drag-handle')) {
+        return;
+      }
+      addToCart(Number(card.dataset.id));
+    };
+  });
 }
 
 // ---------- Savat ----------
@@ -1525,38 +1535,76 @@ document.getElementById('login-password').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleLogin();
 });
 
-// Layout Boshqaruvi
-document.getElementById('layout-selector').onclick = (e) => {
-  const btn = e.target.closest('.lay-btn');
-  if (!btn) return;
-  
-  document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  
-  state.menuLayout = btn.dataset.layout;
-  localStorage.setItem('cb_menu_layout', state.menuLayout);
-  
-  applyMenuLayout();
-};
+// Drag and Drop Boshqaruvi
+let draggedCard = null;
 
-function applyMenuLayout() {
+function setupDragAndDrop() {
   const grid = document.getElementById('product-grid');
   if (!grid) return;
   
-  grid.className = 'product-grid'; // reset
-  if (state.menuLayout === 'list-left') {
-    grid.classList.add('list-left');
-  } else if (state.menuLayout === 'compact') {
-    grid.classList.add('compact');
-  }
+  const cards = grid.querySelectorAll('.product-card');
+  cards.forEach(card => {
+    card.setAttribute('draggable', 'true');
+    
+    card.addEventListener('dragstart', (e) => {
+      draggedCard = card;
+      card.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    card.addEventListener('dragend', async () => {
+      card.classList.remove('dragging');
+      draggedCard = null;
+      await saveNewProductOrder();
+    });
+    
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!draggedCard || draggedCard === card) return;
+      
+      const rect = card.getBoundingClientRect();
+      const midX = rect.left + rect.width / 2;
+      const midY = rect.top + rect.height / 2;
+      
+      const insertAfter = e.clientX > midX || e.clientY > midY;
+      grid.insertBefore(draggedCard, insertAfter ? card.nextSibling : card);
+    });
+  });
 }
 
-// Layoutni yuklash
-state.menuLayout = localStorage.getItem('cb_menu_layout') || 'grid-top';
-const activeLayoutBtn = document.querySelector(`.lay-btn[data-layout="${state.menuLayout}"]`);
-if (activeLayoutBtn) {
-  document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
-  activeLayoutBtn.classList.add('active');
+async function saveNewProductOrder() {
+  const grid = document.getElementById('product-grid');
+  if (!grid) return;
+  
+  const cards = grid.querySelectorAll('.product-card');
+  const newOrderIds = Array.from(cards).map(card => Number(card.dataset.id));
+  
+  newOrderIds.forEach((id, index) => {
+    const p = state.products.find(x => x.id === id);
+    if (p) p.sort_order = index + 1;
+  });
+  
+  // State tartibini yangilash
+  state.products.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+  
+  if (state.isDemoMode) {
+    const prods = JSON.parse(localStorage.getItem('cb_products')) || [];
+    newOrderIds.forEach((id, index) => {
+      const p = prods.find(x => x.id === id);
+      if (p) p.sort_order = index + 1;
+    });
+    localStorage.setItem('cb_products', JSON.stringify(prods));
+    return;
+  }
+  
+  try {
+    const promises = newOrderIds.map((id, index) => 
+      sb.from('cb_products').update({ sort_order: index + 1 }).eq('id', id)
+    );
+    await Promise.all(promises);
+  } catch (err) {
+    console.error("Tartibni saqlashda xatolik:", err);
+  }
 }
 
 // ---------- Ishga tushirish ----------

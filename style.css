@@ -1337,4 +1337,42 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   display: none;
 }
 
+/* Drag and Drop Sorting */
+.product-card {
+  position: relative;
+}
+.drag-handle {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-glass);
+  border-radius: 6px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  cursor: grab;
+  z-index: 5;
+  transition: var(--transition);
+  user-select: none;
+}
+.drag-handle:hover {
+  background: rgba(245, 166, 35, 0.2);
+  color: var(--primary);
+  border-color: var(--primary);
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.product-card.dragging {
+  opacity: 0.4;
+  border: 2px dashed var(--primary);
+  transform: scale(0.98);
+}
+
+
 
