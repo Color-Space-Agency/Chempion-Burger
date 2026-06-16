@@ -31,124 +31,6 @@ function genOrderNumber() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-// ---------- Offline Demo rejimini yoqish ----------
-function enableDemoMode() {
-  state.isDemoMode = true;
-  console.warn("Offline Demo rejimi yoqildi (Supabase jadvallari topilmadi).");
-  
-  // Demo ogohlantirish bannerini qo'shish
-  let banner = document.getElementById('demo-banner');
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id = 'demo-banner';
-    banner.className = 'demo-banner';
-    banner.innerHTML = `⚠️ <b>Demo Rejim</b> (Supabase'ga ulanmadi. Ma'lumotlar brauzerda saqlanmoqda. Doimiy saqlash uchun <b>supabase_setup.sql</b> ni yuklang)`;
-    document.body.prepend(banner);
-  }
-  
-  // Kategoriyalarni localStorage'ga to'ldirish
-  if (!localStorage.getItem('cb_categories')) {
-    const defaultCategories = [
-      { id: 1, name: "Burgerlar", icon: "🍔", sort_order: 1 },
-      { id: 2, name: "Hot-doglar", icon: "🌭", sort_order: 2 },
-      { id: 3, name: "Non kaboblar", icon: "🌯", sort_order: 3 },
-      { id: 4, name: "Setlar", icon: "🍟", sort_order: 4 },
-      { id: 5, name: "Ichimliklar", icon: "🥤", sort_order: 5 },
-      { id: 6, name: "Souslar", icon: "🥫", sort_order: 6 }
-    ];
-    localStorage.setItem('cb_categories', JSON.stringify(defaultCategories));
-  }
-  
-  // Mahsulotlarni localStorage'ga to'ldirish (Flyer va menyu asosida)
-  if (!localStorage.getItem('cb_products')) {
-    const defaultProducts = [
-      { id: 1, category_id: 1, name: 'Ghamburger', price: 33000, description: 'Bulochka, kotlet, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz' },
-      { id: 2, category_id: 1, name: 'Cheeseburger', price: 35000, description: 'Bulochka, kotlet, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz, sir' },
-      { id: 3, category_id: 1, name: 'Bigburger', price: 50000, description: 'Bulochka, kotlet 2ta, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz' },
-      { id: 4, category_id: 1, name: 'Bigburger Sirli', price: 53000, description: 'Bulochka, kotlet 2ta, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous, qizil piyoz, sir' },
-      { id: 5, category_id: 1, name: 'KFC Burger', price: 25000, description: 'Bulochka, KFC, svejiy bodring, pamidor, sho\'r bodring, salat barg, firmenniy sous' },
-      { id: 6, category_id: 3, name: 'Non Kabob', price: 42000, description: 'Qiyma kabob 2ta, non, piyoz, pamidor, firmenniy sous' },
-      { id: 7, category_id: 3, name: 'Non Chicken KFC', price: 30000, description: 'Tovuq, non, svejiy bodring, chisnochniy sous' },
-      { id: 8, category_id: 3, name: 'Non Donar', price: 42000, description: 'Donar go\'sht, non, svejiy bodring, chisnochniy sous' },
-      { id: 9, category_id: 2, name: 'Hot Dog Canadskiy', price: 12000, description: 'Bulochka, sosiska, bodring, pamidor, ketchup, mayonez' },
-      { id: 10, category_id: 2, name: 'Hot Dog Canadskiy 2X', price: 16000, description: 'Bulochka, sosiska 2ta, bodring, pamidor, ketchup, mayonez, chips' },
-      { id: 11, category_id: 2, name: 'Hot Dog Oddiy', price: 10000, description: 'Bulochka, sosiska, sabzi salat, ketchup, mayonez' },
-      { id: 12, category_id: 2, name: 'Hot Dog Oddiy 2X', price: 13000, description: 'Bulochka, sosiska 2ta, sabzi salat, ketchup, mayonez' },
-      { id: 13, category_id: 2, name: 'Go\'shtli Hot-Dog', price: 25000, description: 'Bulochka, go\'sht (donar), bodring, pamidor, firmenniy sous, mayonez, chips' },
-      { id: 14, category_id: 2, name: 'Big Hot-Dog', price: 42000, description: 'Bulochka katta, kotlet 1.5ta, sosiska 2ta, bodring, pamidor, firmenniy sous, mayonez, indeyka' },
-      { id: 15, category_id: 2, name: 'Kabob Hot-Dog', price: 45000, description: 'Bulochka, qiyma, piyoz, firmenniy sous, indeyka' },
-      { id: 16, category_id: 2, name: 'Longer', price: 22000, description: 'Bulochka, KFC (grudka), bodring, pamidor, ketchup, mayonez, salat barg' },
-      { id: 17, category_id: 4, name: 'Set 1', price: 45000, description: 'Ghamburger, fri, Pepsi 0.5l' },
-      { id: 18, category_id: 4, name: 'Set 2', price: 60000, description: 'Non Kabob, fri, Pepsi 0.5l' },
-      { id: 19, category_id: 4, name: 'Set 3', price: 42000, description: 'Go\'shtli hot dog, fri, Pepsi 0.5l' },
-      { id: 20, category_id: 4, name: 'Set 4', price: 43000, description: 'KFC Burger, fri, Pepsi 0.5l' },
-      { id: 21, category_id: 5, name: 'Pepsi 0.5l', price: 8000, description: '' },
-      { id: 22, category_id: 5, name: 'Coca-Cola 0.5l', price: 8000, description: '' },
-      { id: 23, category_id: 5, name: 'Fanta 0.5l', price: 8000, description: '' },
-      { id: 24, category_id: 5, name: 'Suv 0.5l', price: 4000, description: '' },
-      { id: 25, category_id: 5, name: 'Fri kartoshka 110g', price: 15000, description: '' },
-      { id: 26, category_id: 6, name: 'Ketchup', price: 2000, description: '' },
-      { id: 27, category_id: 6, name: 'Mayonez', price: 2000, description: '' }
-    ];
-    localStorage.setItem('cb_products', JSON.stringify(defaultProducts));
-  }
-  
-  // Ombor masalliqlari
-  if (!localStorage.getItem('cb_inventory')) {
-    const defaultInventory = [
-      { id: 1, name: 'Bulochka (burger)', stock: 100, unit: 'dona', min_stock: 20 },
-      { id: 2, name: 'Kotlet (burger)', stock: 150, unit: 'dona', min_stock: 25 },
-      { id: 3, name: 'Bulochka (hot-dog)', stock: 100, unit: 'dona', min_stock: 20 },
-      { id: 4, name: 'Sosiska', stock: 100, unit: 'dona', min_stock: 20 },
-      { id: 5, name: 'Non (kabob)', stock: 80, unit: 'dona', min_stock: 15 },
-      { id: 6, name: 'Tovuq (KFC)', stock: 10, unit: 'kg', min_stock: 2 },
-      { id: 7, name: 'Go\'sht (donar)', stock: 12, unit: 'kg', min_stock: 3 },
-      { id: 8, name: 'Fri (kartoshka)', stock: 15, unit: 'kg', min_stock: 3 },
-      { id: 9, name: 'Pepsi 0.5l', stock: 120, unit: 'dona', min_stock: 20 },
-      { id: 10, name: 'Ketchup', stock: 3000, unit: 'g', min_stock: 500 },
-      { id: 11, name: 'Mayonez', stock: 3000, unit: 'g', min_stock: 500 },
-      { id: 12, name: 'Sabzi salat', stock: 5, unit: 'kg', min_stock: 1 },
-      { id: 13, name: 'Pishloq (sir)', stock: 100, unit: 'dona', min_stock: 20 }
-    ];
-    localStorage.setItem('cb_inventory', JSON.stringify(defaultInventory));
-  }
-  
-  // Retseptlar
-  if (!localStorage.getItem('cb_recipes')) {
-    const defaultRecipes = [
-      { id: 1, product_id: 1, ingredient_id: 1, quantity: 1 },
-      { id: 2, product_id: 1, ingredient_id: 2, quantity: 1 },
-      { id: 3, product_id: 1, ingredient_id: 10, quantity: 10 },
-      { id: 4, product_id: 1, ingredient_id: 11, quantity: 10 },
-      { id: 5, product_id: 2, ingredient_id: 1, quantity: 1 },
-      { id: 6, product_id: 2, ingredient_id: 2, quantity: 1 },
-      { id: 7, product_id: 2, ingredient_id: 13, quantity: 1 },
-      { id: 8, product_id: 2, ingredient_id: 10, quantity: 10 },
-      { id: 9, product_id: 2, ingredient_id: 11, quantity: 10 }
-    ];
-    localStorage.setItem('cb_recipes', JSON.stringify(defaultRecipes));
-  }
-  
-  if (!localStorage.getItem('cb_orders')) {
-    localStorage.setItem('cb_orders', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('cb_order_items')) {
-    localStorage.setItem('cb_order_items', JSON.stringify([]));
-  }
-  if (!localStorage.getItem('cb_customers')) {
-    localStorage.setItem('cb_customers', JSON.stringify([]));
-  }
-  
-  // State-ni to'ldirish
-  state.categories = JSON.parse(localStorage.getItem('cb_categories')) || [];
-  state.products = JSON.parse(localStorage.getItem('cb_products')) || [];
-  state.inventory = JSON.parse(localStorage.getItem('cb_inventory')) || [];
-  state.recipes = JSON.parse(localStorage.getItem('cb_recipes')) || [];
-  state.customers = JSON.parse(localStorage.getItem('cb_customers')) || [];
-  
-  renderCategories(); renderProducts();
-}
-
 // ---------- Menyuni yuklash ----------
 async function loadMenu() {
   try {
@@ -157,13 +39,11 @@ async function loadMenu() {
       sb.from('cb_products').select('*').eq('available', true).order('id'),
     ]);
     if (e1 || e2) {
-      console.warn('Supabase jadvallari topilmadi, Offline Demo rejim ishga tushmoqda...', e1 || e2);
-      enableDemoMode();
+      displayConnectionError(e1 || e2);
       return;
     }
     state.categories = categories || [];
     state.products = products || [];
-    state.isDemoMode = false;
     
     // Demo bannerni yashirish
     const banner = document.getElementById('demo-banner');
@@ -171,9 +51,14 @@ async function loadMenu() {
     
     renderCategories(); renderProducts();
   } catch (err) {
-    console.warn('Ulanish xatosi, Offline Demo rejim ishga tushmoqda...', err);
-    enableDemoMode();
+    displayConnectionError(err);
   }
+}
+
+function displayConnectionError(err) {
+  console.error("Supabase ulanish xatosi:", err);
+  let errMsg = err.message || (err && err.details) || JSON.stringify(err);
+  alert(`⚠️ Supabase ulanish xatosi!\nBaza bilan ulanib bo'lmadi yoki jadvallar topilmadi.\n\nXatolik tafsiloti: ${errMsg}`);
 }
 
 function renderCategories() {
