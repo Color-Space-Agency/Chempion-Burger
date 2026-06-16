@@ -2270,7 +2270,46 @@ export default function App() {
   };
 
   // --- Main Layout Switcher ---
-  if (user && user.role === 'admin') {
+  if (!user) {
+    return (
+      <div className="modal open" id="login-modal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="modal-card login-card">
+          <div className="login-header">
+            <img src="/logo.png" alt="Chempion Burger Logo" className="login-logo-img" style={{ height: '70px', marginBottom: '1rem' }} />
+            <p>Tizimga kirish uchun login va parolni kiriting</p>
+          </div>
+          <div className="login-form">
+            <div className="form-group">
+              <label>Profil nomi</label>
+              <input 
+                type="text" 
+                placeholder="Sotuvchi yoki Admin" 
+                value={loginUsername}
+                onChange={e => setLoginUsername(e.target.value)}
+                onKeyDown={handleLoginKeyDown}
+                required 
+              />
+            </div>
+            <div className="form-group">
+              <label>Parol</label>
+              <input 
+                type="password" 
+                placeholder="••••" 
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                onKeyDown={handleLoginKeyDown}
+                required 
+              />
+            </div>
+            {loginError && <div className="login-error" style={{ display: 'block' }}>{loginError}</div>}
+            <button className="btn-confirm btn-block" onClick={handleLogin}>Tizimga Kirish</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role === 'admin') {
     return (
       <div className="admin-layout">
         {/* Sidebar Nav */}
