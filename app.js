@@ -23,7 +23,9 @@ const state = {
   isDemoMode: false,
   customers: [],
   selectedCustomer: null,
-  menuLayout: 'grid-top'
+  menuLayout: 'grid-top',
+  editingOrderId: null,
+  editingOrderNumber: null
 };
 
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
@@ -373,67 +375,136 @@ document.getElementById('btn-confirm').onclick = async () => {
   if (state.isDemoMode) {
     try {
       const t = calcTotals();
-      const orderNumber = genOrderNumber();
-      
       const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
-      const newOrder = {
-        id: Date.now(),
-        order_number: orderNumber,
-        type: state.orderType,
-        table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
-        status: 'paid',
-        subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
-        cashier: state.currentUser ? state.currentUser.label : 'Kassir',
-        payment_method: state.paymentMethod,
-        customer_id: state.selectedCustomer ? state.selectedCustomer.id : null,
-        created_at: new Date().toISOString(),
-        paid_at: new Date().toISOString()
-      };
-      orders.push(newOrder);
-      localStorage.setItem('cb_orders', JSON.stringify(orders));
-      
       const orderItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
-      state.cart.forEach(i => {
-        orderItems.push({
-          id: Date.now() + Math.random(),
-          order_id: newOrder.id,
-          product_id: i.product_id,
-          name: i.name,
-          price: i.price,
-          qty: i.qty,
-          subtotal: i.price * i.qty
+
+      if (state.editingOrderId) {
+        // --- BUYURTMANI YANGILASH (TAHRIRLASH) ---
+        // 1. Zaxiralarni qaytarish
+        await revertOrderStock(state.editingOrderId);
+
+        // 2. Eski buyurtma taomlarini o'chirish
+        let updatedOrderItems = orderItems.filter(it => it.order_id !== state.editingOrderId);
+
+        // 3. Yangi buyurtma taomlarini qo'shish
+        state.cart.forEach(i => {
+          updatedOrderItems.push({
+            id: Date.now() + Math.random(),
+            order_id: state.editingOrderId,
+            product_id: i.product_id,
+            name: i.name,
+            price: i.price,
+            qty: i.qty,
+            subtotal: i.price * i.qty
+          });
         });
-      });
-      localStorage.setItem('cb_order_items', JSON.stringify(orderItems));
-      
-      // localstorage zaxirasini kamaytirish
-      const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
-      state.cart.forEach(cartItem => {
-        const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
-        prodRecipes.forEach(r => {
-          const ing = inv.find(x => x.id === r.ingredient_id);
-          if (ing) {
-            ing.stock = Math.max(0, parseFloat((ing.stock - (r.quantity * cartItem.qty)).toFixed(2)));
-          }
-        });
-      });
-      localStorage.setItem('cb_inventory', JSON.stringify(inv));
-      state.inventory = inv;
-      renderWarehouseStock();
-      
-      // localstorage mijoz xaridlarini yangilash
-      if (state.selectedCustomer) {
-        const custs = JSON.parse(localStorage.getItem('cb_customers')) || [];
-        const c = custs.find(x => x.id === state.selectedCustomer.id);
-        if (c) {
-          c.purchase_count++;
-          localStorage.setItem('cb_customers', JSON.stringify(custs));
+        localStorage.setItem('cb_order_items', JSON.stringify(updatedOrderItems));
+
+        // 4. Buyurtmani yangilash
+        const oIdx = orders.findIndex(o => o.id === state.editingOrderId);
+        if (oIdx !== -1) {
+          orders[oIdx] = {
+            ...orders[oIdx],
+            type: state.orderType,
+            table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
+            subtotal: t.subtotal,
+            service_charge: t.service,
+            discount: t.discount,
+            total: t.total,
+            payment_method: state.paymentMethod,
+            customer_id: state.selectedCustomer ? state.selectedCustomer.id : null
+          };
+          localStorage.setItem('cb_orders', JSON.stringify(orders));
         }
-        state.selectedCustomer.purchase_count++;
-        await loadCustomers();
+
+        // 5. Yangi zaxirani kamaytirish
+        const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+        state.cart.forEach(cartItem => {
+          const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+          prodRecipes.forEach(r => {
+            const ing = inv.find(x => x.id === r.ingredient_id);
+            if (ing) {
+              ing.stock = Math.max(0, parseFloat((ing.stock - (r.quantity * cartItem.qty)).toFixed(2)));
+            }
+          });
+        });
+        localStorage.setItem('cb_inventory', JSON.stringify(inv));
+        state.inventory = inv;
+        renderWarehouseStock();
+
+        // 6. Tahrirlash rejimini yopish
+        const updatedOrder = orders.find(o => o.id === state.editingOrderId);
+        state.editingOrderId = null;
+        state.editingOrderNumber = null;
+        
+        const editStatus = document.getElementById('cart-edit-status');
+        if (editStatus) editStatus.style.display = 'none';
+        document.getElementById('btn-confirm').textContent = '✅ Tasdiqlash';
+
+        alert("Buyurtma muvaffaqiyatli yangilandi!");
+        showReceipt(updatedOrder, t);
+
+      } else {
+        // --- YANGI BUYURTMA YARATISH ---
+        const orderNumber = genOrderNumber();
+        const newOrder = {
+          id: Date.now(),
+          order_number: orderNumber,
+          type: state.orderType,
+          table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
+          status: 'paid',
+          subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
+          cashier: state.currentUser ? state.currentUser.label : 'Kassir',
+          payment_method: state.paymentMethod,
+          customer_id: state.selectedCustomer ? state.selectedCustomer.id : null,
+          created_at: new Date().toISOString(),
+          paid_at: new Date().toISOString()
+        };
+        orders.push(newOrder);
+        localStorage.setItem('cb_orders', JSON.stringify(orders));
+        
+        state.cart.forEach(i => {
+          orderItems.push({
+            id: Date.now() + Math.random(),
+            order_id: newOrder.id,
+            product_id: i.product_id,
+            name: i.name,
+            price: i.price,
+            qty: i.qty,
+            subtotal: i.price * i.qty
+          });
+        });
+        localStorage.setItem('cb_order_items', JSON.stringify(orderItems));
+        
+        // localstorage zaxirasini kamaytirish
+        const inv = JSON.parse(localStorage.getItem('cb_inventory')) || [];
+        state.cart.forEach(cartItem => {
+          const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+          prodRecipes.forEach(r => {
+            const ing = inv.find(x => x.id === r.ingredient_id);
+            if (ing) {
+              ing.stock = Math.max(0, parseFloat((ing.stock - (r.quantity * cartItem.qty)).toFixed(2)));
+            }
+          });
+        });
+        localStorage.setItem('cb_inventory', JSON.stringify(inv));
+        state.inventory = inv;
+        renderWarehouseStock();
+        
+        // localstorage mijoz xaridlarini yangilash
+        if (state.selectedCustomer) {
+          const custs = JSON.parse(localStorage.getItem('cb_customers')) || [];
+          const c = custs.find(x => x.id === state.selectedCustomer.id);
+          if (c) {
+            c.purchase_count++;
+            localStorage.setItem('cb_customers', JSON.stringify(custs));
+          }
+          state.selectedCustomer.purchase_count++;
+          await loadCustomers();
+        }
+        
+        showReceipt(newOrder, t);
       }
-      
-      showReceipt(newOrder, t);
     } catch (e) {
       alert("Xatolik: " + e.message);
     } finally {
@@ -445,52 +516,122 @@ document.getElementById('btn-confirm').onclick = async () => {
   // --- NORMAL SUPABASE REJIMIDA CHECKOUT ---
   try {
     const t = calcTotals();
-    const orderNumber = genOrderNumber();
-    const { data: order, error } = await sb.from('cb_orders').insert({
-      order_number: orderNumber,
-      type: state.orderType,
-      table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
-      status: 'paid',
-      subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
-      cashier: state.currentUser ? state.currentUser.label : 'Kassir', paid_at: new Date().toISOString(),
-      payment_method: state.paymentMethod,
-      customer_id: state.selectedCustomer ? state.selectedCustomer.id : null
-    }).select().single();
-    if (error) throw error;
+    let order = null;
 
-    const items = state.cart.map(i => ({
-      order_id: order.id, product_id: i.product_id, name: i.name, price: i.price, qty: i.qty, subtotal: i.price * i.qty,
-    }));
-    const { error: e2 } = await sb.from('cb_order_items').insert(items);
-    if (e2) throw e2;
+    if (state.editingOrderId) {
+      // --- BUYURTMANI YANGILASH (TAHRIRLASH) ---
+      // 1. Zaxiralarni qaytarish
+      await revertOrderStock(state.editingOrderId);
 
-    // --- Zaxiralarni kamaytirish (Ombordan avtomatik) ---
-    try {
-      const deductions = {};
-      for (const cartItem of state.cart) {
-        const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
-        for (const r of prodRecipes) {
-          deductions[r.ingredient_id] = (deductions[r.ingredient_id] || 0) + (r.quantity * cartItem.qty);
+      // 2. Eski buyurtma taomlarini o'chirish
+      const { error: dErr } = await sb.from('cb_order_items').delete().eq('order_id', state.editingOrderId);
+      if (dErr) throw dErr;
+
+      // 3. Buyurtma ma'lumotlarini yangilash
+      const { data: oData, error: uErr } = await sb.from('cb_orders').update({
+        type: state.orderType,
+        table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
+        subtotal: t.subtotal,
+        service_charge: t.service,
+        discount: t.discount,
+        total: t.total,
+        cashier: state.currentUser ? state.currentUser.label : 'Kassir',
+        payment_method: state.paymentMethod,
+        customer_id: state.selectedCustomer ? state.selectedCustomer.id : null
+      }).eq('id', state.editingOrderId).select().single();
+      if (uErr) throw uErr;
+      order = oData;
+
+      // 4. Yangi taomlarni qo'shish
+      const items = state.cart.map(i => ({
+        order_id: state.editingOrderId,
+        product_id: i.product_id,
+        name: i.name,
+        price: i.price,
+        qty: i.qty,
+        subtotal: i.price * i.qty,
+      }));
+      const { error: e2 } = await sb.from('cb_order_items').insert(items);
+      if (e2) throw e2;
+
+      // 5. Ombordan yangi zaxirani kamaytirish
+      try {
+        const deductions = {};
+        for (const cartItem of state.cart) {
+          const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+          for (const r of prodRecipes) {
+            deductions[r.ingredient_id] = (deductions[r.ingredient_id] || 0) + (r.quantity * cartItem.qty);
+          }
         }
+        for (const [ingId, qty] of Object.entries(deductions)) {
+          await sb.rpc('cb_deduct_inventory', { p_ingredient_id: Number(ingId), p_qty: Number(qty) });
+        }
+        await loadInventory();
+      } catch (deductErr) {
+        console.error('Ombordan kamaytirishda xatolik:', deductErr);
       }
-      for (const [ingId, qty] of Object.entries(deductions)) {
-        await sb.rpc('cb_deduct_inventory', { p_ingredient_id: Number(ingId), p_qty: Number(qty) });
+
+      // 6. Tahrirlash rejimini yopish
+      state.editingOrderId = null;
+      state.editingOrderNumber = null;
+      
+      const editStatus = document.getElementById('cart-edit-status');
+      if (editStatus) editStatus.style.display = 'none';
+      document.getElementById('btn-confirm').textContent = '✅ Tasdiqlash';
+
+      alert("Buyurtma muvaffaqiyatli yangilandi!");
+      showReceipt(order, t);
+
+    } else {
+      // --- YANGI BUYURTMA YARATISH ---
+      const orderNumber = genOrderNumber();
+      const { data: oData, error } = await sb.from('cb_orders').insert({
+        order_number: orderNumber,
+        type: state.orderType,
+        table_number: state.orderType === 'dine_in' ? (document.getElementById('table-number').value || null) : null,
+        status: 'paid',
+        subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
+        cashier: state.currentUser ? state.currentUser.label : 'Kassir', paid_at: new Date().toISOString(),
+        payment_method: state.paymentMethod,
+        customer_id: state.selectedCustomer ? state.selectedCustomer.id : null
+      }).select().single();
+      if (error) throw error;
+      order = oData;
+
+      const items = state.cart.map(i => ({
+        order_id: order.id, product_id: i.product_id, name: i.name, price: i.price, qty: i.qty, subtotal: i.price * i.qty,
+      }));
+      const { error: e2 } = await sb.from('cb_order_items').insert(items);
+      if (e2) throw e2;
+
+      // --- Zaxiralarni kamaytirish (Ombordan avtomatik) ---
+      try {
+        const deductions = {};
+        for (const cartItem of state.cart) {
+          const prodRecipes = state.recipes.filter(r => r.product_id === cartItem.product_id);
+          for (const r of prodRecipes) {
+            deductions[r.ingredient_id] = (deductions[r.ingredient_id] || 0) + (r.quantity * cartItem.qty);
+          }
+        }
+        for (const [ingId, qty] of Object.entries(deductions)) {
+          await sb.rpc('cb_deduct_inventory', { p_ingredient_id: Number(ingId), p_qty: Number(qty) });
+        }
+        await loadInventory();
+      } catch (deductErr) {
+        console.error('Ombordan kamaytirishda xatolik:', deductErr);
       }
-      await loadInventory();
-    } catch (deductErr) {
-      console.error('Ombordan kamaytirishda xatolik:', deductErr);
-    }
 
-    // Mijoz xaridlarini yangilash
-    if (state.selectedCustomer) {
-      const { error: custErr } = await sb.from('cb_customers').update({
-        purchase_count: state.selectedCustomer.purchase_count + 1
-      }).eq('id', state.selectedCustomer.id);
-      if (custErr) console.error('Mijoz xaridlarini yangilashda xato:', custErr);
-      await loadCustomers();
-    }
+      // Mijoz xaridlarini yangilash
+      if (state.selectedCustomer) {
+        const { error: custErr } = await sb.from('cb_customers').update({
+          purchase_count: state.selectedCustomer.purchase_count + 1
+        }).eq('id', state.selectedCustomer.id);
+        if (custErr) console.error('Mijoz xaridlarini yangilashda xato:', custErr);
+        await loadCustomers();
+      }
 
-    showReceipt(order, t);
+      showReceipt(order, t);
+    }
   } catch (err) {
     alert('Buyurtma saqlanmadi: ' + (err.message || err));
     console.error(err);
@@ -569,7 +710,8 @@ async function loadReport() {
     const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
     list = orders.filter(o => o.status === 'paid' && o.created_at && o.created_at.slice(0, 10) === date);
   } else {
-    const { data: orders, error } = await sb.from('cb_orders').select('*')
+    // Select with cb_customers join
+    const { data: orders, error } = await sb.from('cb_orders').select('*, cb_customers(name)')
       .eq('status', 'paid')
       .gte('created_at', date + 'T00:00:00+05:00')
       .lte('created_at', date + 'T23:59:59.999+05:00');
@@ -586,23 +728,105 @@ async function loadReport() {
   list.forEach(o => { byType[o.type] = byType[o.type] || { count: 0, sum: 0 }; byType[o.type].count++; byType[o.type].sum += Number(o.total || 0); });
   const typesHtml = Object.keys(byType).map(k => `<div class="rrow"><span>${TYPE_LABEL[k] || k}</span><span>${byType[k].count} ta · ${fmt(byType[k].sum)}</span></div>`).join('') || `<div class="rrow"><span>—</span></div>`;
 
-  // Eng ko'p sotilgan
+  // Eng ko'p sotilgan & Buyurtma ro'yxati uchun elementlarni yuklash
   let topHtml = `<div class="rrow"><span>Sotuv yo'q</span></div>`;
   const ids = list.map(o => o.id);
+  const itemsByOrder = {};
+
   if (ids.length) {
     let items = [];
     if (state.isDemoMode) {
       const allItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
       items = allItems.filter(it => ids.includes(it.order_id));
     } else {
-      const { data } = await sb.from('cb_order_items').select('name, qty, subtotal').in('order_id', ids);
+      const { data } = await sb.from('cb_order_items').select('order_id, name, qty, subtotal, price').in('order_id', ids);
       items = data || [];
     }
     
+    // Group top items
     const agg = {};
     items.forEach(it => { agg[it.name] = agg[it.name] || { qty: 0, rev: 0 }; agg[it.name].qty += Number(it.qty || 0); agg[it.name].rev += Number(it.subtotal || 0); });
     const top = Object.entries(agg).map(([name, v]) => ({ name, ...v })).sort((a, b) => b.rev - a.rev).slice(0, 10);
     if (top.length) topHtml = top.map(p => `<div class="rrow"><span>${p.name}</span><span>${p.qty} dona · ${fmt(p.rev)}</span></div>`).join('');
+
+    // Group items by order
+    items.forEach(it => {
+      itemsByOrder[it.order_id] = itemsByOrder[it.order_id] || [];
+      itemsByOrder[it.order_id].push(it);
+    });
+  }
+
+  // Buyurtmalar jadvali (Admin uchun tahrirlash/o'chirish imkoniyati bilan)
+  const isAdmin = state.currentUser && state.currentUser.role === 'admin';
+  let ordersHtml = '';
+  
+  if (list.length === 0) {
+    ordersHtml = `<div class="rrow"><span>Buyurtmalar topilmadi</span></div>`;
+  } else {
+    ordersHtml = `
+      <div class="report-orders-table-wrapper" style="overflow-x:auto; margin-top: 0.5rem; background:rgba(0,0,0,0.15); border-radius:10px; border:1px solid var(--border-glass);">
+        <table class="report-orders-table" style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+          <thead>
+            <tr style="border-bottom: 2px solid var(--border-glass); color: var(--muted); font-weight:700;">
+              <th style="padding: 0.6rem 0.6rem;">№ / Vaqt</th>
+              <th style="padding: 0.6rem 0.6rem;">Turi / Joy</th>
+              <th style="padding: 0.6rem 0.6rem;">Mijoz</th>
+              <th style="padding: 0.6rem 0.6rem;">Taomlar</th>
+              <th style="padding: 0.6rem 0.6rem;">Jami</th>
+              ${isAdmin ? `<th style="padding: 0.6rem 0.6rem; text-align:center;">Amallar</th>` : ''}
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    list.forEach(o => {
+      const oItems = itemsByOrder[o.id] || [];
+      const itemsText = oItems.map(it => `${it.name} ×${it.qty}`).join(', ');
+      
+      let customerName = '—';
+      if (state.isDemoMode) {
+        if (o.customer_id) {
+          const c = state.customers.find(cust => cust.id === o.customer_id);
+          if (c) customerName = c.name;
+        }
+      } else {
+        if (o.cb_customers) {
+          customerName = o.cb_customers.name;
+        }
+      }
+
+      const timeStr = o.created_at ? new Date(o.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }) : '';
+      const typeLabel = TYPE_LABEL[o.type] || o.type;
+      const placeLabel = o.table_number ? `Stol №${o.table_number}` : (o.type === 'dine_in' ? 'Zal' : typeLabel);
+
+      ordersHtml += `
+        <tr style="border-bottom: 1px solid rgba(255,255,255,0.05);">
+          <td style="padding: 0.6rem 0.6rem;">
+            <b>#${o.order_number || o.id}</b><br>
+            <small style="color:var(--muted);">${timeStr}</small>
+          </td>
+          <td style="padding: 0.6rem 0.6rem;">
+            ${typeLabel}<br>
+            <small style="color:var(--muted);">${placeLabel}</small>
+          </td>
+          <td style="padding: 0.6rem 0.6rem;">${customerName}</td>
+          <td style="padding: 0.6rem 0.6rem; max-width: 160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${itemsText}">${itemsText}</td>
+          <td style="padding: 0.6rem 0.6rem; font-weight:700; color:var(--primary);">${fmt(o.total)}</td>
+          ${isAdmin ? `
+            <td style="padding: 0.6rem 0.6rem; text-align:center; white-space:nowrap;">
+              <button class="lay-btn" onclick="editOrder(${o.id})" style="padding:0.25rem 0.5rem; font-size:0.7rem; background:rgba(255,159,10,0.1); color:var(--primary); border:1px solid rgba(255,159,10,0.15); margin-right:4px;">✏️</button>
+              <button class="lay-btn" onclick="deleteOrder(${o.id})" style="padding:0.25rem 0.5rem; font-size:0.7rem; background:rgba(255,69,58,0.1); color:#ff453a; border:1px solid rgba(255,69,58,0.15);">🗑️</button>
+            </td>
+          ` : ''}
+        </tr>
+      `;
+    });
+
+    ordersHtml += `
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   body.innerHTML = `
@@ -612,8 +836,17 @@ async function loadReport() {
       <div class="kpi"><small>Xizmat haqi</small><b>${fmt(service)}</b></div>
       <div class="kpi"><small>Chegirma</small><b>${fmt(discount)}</b></div>
     </div>
-    <h4>Buyurtma turlari</h4>${typesHtml}
-    <h4>Eng ko'p sotilgan</h4>${topHtml}`;
+    <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:1.2rem; margin-top: 1rem;">
+      <div>
+        <h4>Buyurtma turlari</h4>${typesHtml}
+      </div>
+      <div>
+        <h4>Eng ko'p sotilgan</h4>${topHtml}
+      </div>
+    </div>
+    <h4 style="margin-top:1.5rem; margin-bottom: 0.4rem; border-top:1px solid var(--border-glass); padding-top:1rem;">Kunlik buyurtmalar ro'yxati</h4>
+    ${ordersHtml}
+  `;
 }
 
 // ---------- Avtorizatsiya (Login / Logout) ----------
@@ -2227,4 +2460,186 @@ window.addEventListener('resize', handleMobileLayoutSwitch);
 
 // Initial check
 handleMobileLayoutSwitch();
+
+// --- Revert Stock, Delete Order, Edit Order Helpers ---
+async function revertOrderStock(orderId) {
+  let orderItems = [];
+  if (state.isDemoMode) {
+    const allItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+    orderItems = allItems.filter(it => it.order_id === orderId);
+  } else {
+    const { data, error } = await sb.from('cb_order_items').select('*').eq('order_id', orderId);
+    if (error) throw error;
+    orderItems = data || [];
+  }
+
+  for (const item of orderItems) {
+    const recipes = state.recipes.filter(r => r.product_id === item.product_id);
+    for (const r of recipes) {
+      if (state.isDemoMode) {
+        const inv = state.inventory.find(i => i.id === r.ingredient_id);
+        if (inv) {
+          inv.stock = parseFloat((Number(inv.stock) + (Number(r.quantity) * Number(item.qty))).toFixed(2));
+        }
+      } else {
+        const { data: invs, error: fErr } = await sb.from('cb_inventory').select('stock').eq('id', r.ingredient_id);
+        if (fErr) throw fErr;
+        if (invs && invs.length > 0) {
+          const newStock = Number(invs[0].stock) + (Number(r.quantity) * Number(item.qty));
+          await sb.from('cb_inventory').update({ stock: newStock }).eq('id', r.ingredient_id);
+        }
+      }
+    }
+  }
+
+  if (state.isDemoMode) {
+    localStorage.setItem('cb_inventory', JSON.stringify(state.inventory));
+  }
+}
+
+async function deleteOrder(orderId) {
+  if (!confirm("Haqiqatan ham ushbu buyurtmani o'chirib tashlamoqchimisiz? Bu amalni ortga qaytarib bo'lmaydi!")) {
+    return;
+  }
+  
+  try {
+    // 1. Revert stock
+    await revertOrderStock(orderId);
+
+    // 2. Delete from DB or localStorage
+    if (state.isDemoMode) {
+      const allOrders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+      const updatedOrders = allOrders.filter(o => o.id !== orderId);
+      localStorage.setItem('cb_orders', JSON.stringify(updatedOrders));
+
+      const allItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+      const updatedItems = allItems.filter(it => it.order_id !== orderId);
+      localStorage.setItem('cb_order_items', JSON.stringify(updatedItems));
+    } else {
+      const { error } = await sb.from('cb_orders').delete().eq('id', orderId);
+      if (error) throw error;
+    }
+
+    alert("Buyurtma muvaffaqiyatli o'chirildi!");
+    
+    // Reload report and inventory list
+    loadReport();
+    loadInventory();
+  } catch (err) {
+    alert("Xatolik yuz berdi: " + err.message);
+  }
+}
+window.deleteOrder = deleteOrder;
+
+async function editOrder(orderId) {
+  try {
+    let order = null;
+    let orderItems = [];
+
+    // Close reports modal
+    document.getElementById('reports-modal').classList.remove('open');
+
+    // Fetch order and items
+    if (state.isDemoMode) {
+      const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+      order = orders.find(o => o.id === orderId);
+      
+      const allItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+      orderItems = allItems.filter(it => it.order_id === orderId);
+    } else {
+      const { data: oData, error: oErr } = await sb.from('cb_orders').select('*, cb_customers(name)').eq('id', orderId);
+      if (oErr) throw oErr;
+      order = oData ? oData[0] : null;
+
+      const { data: iData, error: iErr } = await sb.from('cb_order_items').select('*').eq('order_id', orderId);
+      if (iErr) throw iErr;
+      orderItems = iData || [];
+    }
+
+    if (!order) {
+      alert("Buyurtma topilmadi!");
+      return;
+    }
+
+    // Set editing state
+    state.editingOrderId = orderId;
+    state.editingOrderNumber = order.order_number;
+    
+    // Update cart
+    state.cart = orderItems.map(it => ({
+      product_id: it.product_id,
+      name: it.name,
+      price: Number(it.price),
+      qty: Number(it.qty)
+    }));
+
+    // Update order details in state
+    state.orderType = order.type;
+    document.getElementById('table-number').value = order.table_number || '';
+    document.getElementById('discount-input').value = order.discount || 0;
+    
+    const subtotal = Number(order.subtotal);
+    const servicePct = subtotal > 0 ? Math.round((Number(order.service_charge) / subtotal) * 100) : 0;
+    document.getElementById('service-pct').value = servicePct;
+
+    // Load customer
+    if (order.customer_id) {
+      const cust = state.customers.find(c => c.id === order.customer_id);
+      state.selectedCustomer = cust || { id: order.customer_id, name: order.cb_customers?.name || 'Mijoz' };
+    } else {
+      state.selectedCustomer = null;
+    }
+
+    // Update active buttons & fields
+    document.querySelectorAll('.otype').forEach(x => {
+      x.classList.remove('active');
+      if (x.dataset.type === order.type) x.classList.add('active');
+    });
+    document.getElementById('cart-type-label').textContent = TYPE_LABEL[state.orderType];
+    document.getElementById('table-row').style.display = state.orderType === 'dine_in' ? 'flex' : 'none';
+    
+    updateSelectedCustomerUI();
+    renderCart();
+
+    // Show edit status banner
+    const editStatus = document.getElementById('cart-edit-status');
+    if (editStatus) {
+      editStatus.style.display = 'flex';
+      editStatus.querySelector('span').innerText = `✏️ Tahrirlash: №${order.order_number || order.id}`;
+    }
+    
+    // Update confirm button text
+    document.getElementById('btn-confirm').textContent = '💾 Buyurtmani Yangilash';
+
+  } catch (err) {
+    alert("Xatolik yuz berdi: " + err.message);
+  }
+}
+window.editOrder = editOrder;
+
+function cancelEditOrder() {
+  state.editingOrderId = null;
+  state.editingOrderNumber = null;
+  state.cart = [];
+  state.selectedCustomer = null;
+  document.getElementById('table-number').value = '';
+  document.getElementById('discount-input').value = 0;
+  document.getElementById('service-pct').value = 0;
+  
+  updateSelectedCustomerUI();
+  renderCart();
+
+  // Hide edit status banner
+  const editStatus = document.getElementById('cart-edit-status');
+  if (editStatus) editStatus.style.display = 'none';
+
+  // Restore confirm button text
+  document.getElementById('btn-confirm').textContent = '✅ Tasdiqlash';
+}
+window.cancelEditOrder = cancelEditOrder;
+
+const cancelEditBtn = document.getElementById('btn-cancel-edit-order');
+if (cancelEditBtn) {
+  cancelEditBtn.onclick = cancelEditOrder;
+}
 
