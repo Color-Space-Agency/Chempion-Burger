@@ -1,41 +1,16 @@
-# 🍔 Chempion Burger — Restoran POS
+# React + Vite
 
-Restoran/kafe kassa (POS) tizimi. **Statik frontend (HTML/CSS/JS) + Supabase.**
-Vercel'da deploy qilinadi (serversiz). Ma'lumot Supabase'da (`cb_` prefiksli jadvallar).
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Sozlash (bir martalik)
+Currently, two official plugins are available:
 
-1. **Supabase** → loyihangiz → **SQL Editor** → `supabase_setup.sql` faylini yopishtirib **Run**.
-   (Jadvallar, RLS va namuna menyu yaratiladi.)
-2. (Ixtiyoriy) Boshqa Supabase proyekti ishlatmoqchi bo'lsangiz, `app.js` boshidagi
-   `SUPABASE_URL` va `SUPABASE_KEY` ni almashtiring.
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-## Lokal ishga tushirish
-Oddiy statik server yetarli:
-```bash
-npx -y serve -l 3000      # yoki istalgan statik server
-```
-So'ng: http://localhost:3000
+## React Compiler
 
-## Vercel'ga deploy
-- GitHub repo'ni Vercel'ga ulang (Import) → framework "Other" → Deploy.
-- Build kerak emas (statik). Root'dagi `index.html` ishlaydi.
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## Tuzilma
-```
-index.html            POS interfeysi
-style.css             uslub
-app.js                mantiq (Supabase client)
-supabase_setup.sql    baza sxemasi + RLS + namuna menyu (bir marta Run)
-```
+## Expanding the ESLint configuration
 
-## Imkoniyatlar
-- Menyu (kategoriya + mahsulot), savat, miqdor +/−
-- Buyurtma turlari: **Zal / Olib ketish / Yetkazib berish**
-- Xizmat haqi (%), chegirma, jami
-- Tasdiqlash → Supabase'ga saqlash → chek
-- Kunlik hisobot (tushum, turlar, eng ko'p sotilgan)
-
-## Keyingi bosqichlar
-Termal printer · rollar (kassir/admin) · stol xaritasi · ombor · Click/Payme to'lov.
--Ombor kirim va chiqim
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
