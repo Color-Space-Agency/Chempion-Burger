@@ -1,16 +1,515 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="uz">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/logo.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Chempion Burger — POS</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chempion Burger — POS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="logo.png" alt="Chempion Burger Logo" class="brand-logo">
+      <small>POS</small>
+    </div>
+    
+    <div class="order-types" id="order-types">
+      <button class="otype active" data-type="dine_in">🍽️ Zal</button>
+      <button class="otype" data-type="takeout">🥡 Olib ketish</button>
+      <button class="otype" data-type="delivery">🛵 Yetkazib berish</button>
+    </div>
+    
+    <div class="topbar-actions">
+      <button class="btn-report" id="open-dashboard" style="display: none;">📊 Analitika</button>
+      <button class="btn-report" id="open-reports" style="display: none;">📊 Hisobot</button>
+      <button class="btn-report" id="open-warehouse" style="display: none;">📦 Ombor</button>
+      <button class="btn-report" id="open-customers" style="display: none;">👥 Mijozlar</button>
+      <button class="btn-report" id="open-menu-edit" style="display: none;">⚙️ Menyu</button>
+      
+      <div class="user-badge" id="user-badge" style="display: none;">
+        <span class="user-icon">👤</span>
+        <span class="user-name" id="user-role-label">Sotuvchi</span>
+        <button class="btn-logout" id="btn-logout" title="Chiqish">🚪</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <!-- Chap: menyu -->
+    <section class="menu-panel">
+      <div class="menu-panel-header">
+        <div class="cat-tabs" id="cat-tabs"></div>
+      </div>
+      <div class="product-grid" id="product-grid"></div>
+    </section>
+
+    <!-- O'ng: savat / chek -->
+    <aside class="cart-panel">
+      <div class="cart-head">
+        <h2>Buyurtma</h2>
+        <span class="cart-type" id="cart-type-label">Zal</span>
+      </div>
+
+      <div class="table-row" id="table-row">
+        <label>Stol №</label>
+        <input type="text" id="table-number" placeholder="masalan: 5">
+      </div>
+
+      <div class="payment-row">
+        <label>To'lov usuli</label>
+        <div class="payment-methods" id="payment-methods">
+          <button class="pm-btn active" data-method="naqd">💵 Naqd</button>
+          <button class="pm-btn" data-method="karta">💳 Karta</button>
+        </div>
+      </div>
+
+      <div class="customer-row">
+        <label>Mijoz (Bonus: 5-xarid bepul)</label>
+        <div class="customer-selector-container">
+          <input type="text" id="cart-customer-search" placeholder="Qidirish: ism yoki tel..." autocomplete="off">
+          <div id="cart-customer-dropdown" class="customer-dropdown" style="display: none;"></div>
+        </div>
+        <div id="selected-customer-badge" class="selected-customer-badge" style="display: none;">
+          <span id="selected-customer-name"></span>
+          <button id="btn-remove-customer" type="button">✕</button>
+        </div>
+        <div id="loyalty-bonus-alert" class="loyalty-bonus-alert" style="display: none;">
+          🎁 <b>Bonus Xarid!</b> Eng arzon mahsulot tekin bo'ladi.
+        </div>
+      </div>
+
+      <div class="cart-items" id="cart-items">
+        <div class="cart-empty" id="cart-empty">Savat bo'sh — taom tanlang</div>
+      </div>
+
+      <div class="cart-summary">
+        <div class="sum-row"><span>Oraliq</span><b id="sum-subtotal">0 so'm</b></div>
+        <div class="sum-row">
+          <span>Xizmat haqi
+            <input type="number" id="service-pct" value="0" min="0" max="100" class="pct-input"> %
+          </span>
+          <b id="sum-service">0 so'm</b>
+        </div>
+        <div class="sum-row">
+          <span>Chegirma <input type="number" id="discount-input" value="0" min="0" class="disc-input"> so'm</span>
+          <b id="sum-discount">0 so'm</b>
+        </div>
+        <div class="sum-row total"><span>JAMI</span><b id="sum-total">0 so'm</b></div>
+      </div>
+
+      <div class="cart-actions">
+        <button class="btn-clear" id="btn-clear">Tozalash</button>
+        <button class="btn-confirm" id="btn-confirm">✅ Tasdiqlash</button>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Login Modal -->
+  <div class="modal open" id="login-modal">
+    <div class="modal-card login-card">
+      <div class="login-header">
+        <img src="logo.png" alt="Chempion Burger Logo" class="login-logo-img">
+        <p>Tizimga kirish uchun login va parolni kiriting</p>
+      </div>
+      <div class="login-form">
+        <div class="form-group">
+          <label>Profil nomi</label>
+          <input type="text" id="login-username" placeholder="Sotuvchi yoki Admin" required>
+        </div>
+        <div class="form-group">
+          <label>Parol</label>
+          <input type="password" id="login-password" placeholder="••••" required>
+        </div>
+        <div class="login-error" id="login-error" style="display: none;">Xato login yoki parol!</div>
+        <button class="btn-confirm btn-block" id="btn-login">Tizimga Kirish</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chek modal -->
+  <div class="modal" id="receipt-modal">
+    <div class="modal-card receipt">
+      <div id="receipt-body"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="receipt-print">🖨️ Chop etish</button>
+        <button class="btn-confirm" id="receipt-close">Yangi buyurtma</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hisobot modal -->
+  <div class="modal" id="reports-modal">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2>📊 Kunlik Hisobot</h2>
+        <button class="modal-x" id="reports-close">✕</button>
+      </div>
+      <input type="date" id="report-date" class="report-date">
+      <div id="report-body" class="report-body"></div>
+    </div>
+  </div>
+
+  <!-- Ombor modal -->
+  <div class="modal" id="warehouse-modal">
+    <div class="modal-card warehouse-card">
+      <div class="modal-head">
+        <h2>📦 Ombor va Masalliqlar</h2>
+        <button class="modal-x" id="warehouse-close">✕</button>
+      </div>
+      
+      <div class="warehouse-tabs">
+        <button class="w-tab active" id="w-tab-stock">Masalliqlar Qoldig'i</button>
+        <button class="w-tab" id="w-tab-recipes">Retseptlar</button>
+      </div>
+
+      <!-- Tab: Stock -->
+      <div class="w-content active" id="w-content-stock">
+        <div class="add-ingredient-form">
+          <h4>Yangi masalliq qo'shish</h4>
+          <div class="form-row">
+            <input type="text" id="new-ing-name" placeholder="Masalliq nomi">
+            <input type="number" id="new-ing-stock" placeholder="Qoldiq" step="any">
+            <input type="text" id="new-ing-unit" placeholder="Birlik (masalan: dona, kg, g)" value="dona">
+            <button class="btn-confirm" id="btn-add-ingredient">Qo'shish</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="w-table">
+            <thead>
+              <tr>
+                <th>Masalliq</th>
+                <th>Qoldiq</th>
+                <th>Birlik</th>
+                <th>Harakat</th>
+              </tr>
+            </thead>
+            <tbody id="warehouse-stock-body">
+              <!-- JS dynamic -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: Recipes -->
+      <div class="w-content" id="w-content-recipes">
+        <div class="recipe-editor-container">
+          <div class="recipe-select-product">
+            <label>Mahsulotni tanlang:</label>
+            <select id="recipe-product-select">
+              <!-- JS dynamic -->
+            </select>
+          </div>
+          
+          <div class="recipe-ingredients-list">
+            <h4>Mahsulot tarkibi:</h4>
+            <div class="table-container">
+              <table class="w-table">
+                <thead>
+                  <tr>
+                    <th>Masalliq</th>
+                    <th>Miqdori</th>
+                    <th>Birlik</th>
+                    <th>O'chirish</th>
+                  </tr>
+                </thead>
+                <tbody id="recipe-items-body">
+                  <!-- JS dynamic -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="add-recipe-item-form">
+            <h5>Masalliq qo'shish yoki miqdorini o'zgartirish</h5>
+            <div class="form-row">
+              <select id="recipe-ing-select">
+                <!-- JS dynamic -->
+              </select>
+              <input type="number" id="recipe-ing-qty" placeholder="Miqdori" step="any">
+              <button class="btn-confirm" id="btn-save-recipe-item">Saqlash</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mijozlar modal -->
+  <div class="modal" id="customers-modal">
+    <div class="modal-card customer-card-modal">
+      <div class="modal-head">
+        <h2>👥 Mijozlar Bazasi</h2>
+        <button class="modal-x" id="customers-close">✕</button>
+      </div>
+      
+      <div class="add-customer-form">
+        <h4>Yangi mijoz qo'shish</h4>
+        <div class="form-row">
+          <input type="text" id="new-cust-name" placeholder="F.I.O.">
+          <input type="text" id="new-cust-phone" placeholder="Telefon (masalan: +998901234567)">
+          <button class="btn-confirm" id="btn-add-customer">Qo'shish</button>
+        </div>
+      </div>
+
+      <div class="search-cust-row">
+        <input type="text" id="search-cust-input" placeholder="Mijozni qidirish (ism yoki tel)...">
+      </div>
+
+      <div class="table-container">
+        <table class="w-table">
+          <thead>
+            <tr>
+              <th>F.I.O.</th>
+              <th>Telefon</th>
+              <th>Xaridlar soni</th>
+              <th>Harakat</th>
+            </tr>
+          </thead>
+          <tbody id="customers-list-body">
+            <!-- Dynamic JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menyu Tahrirlash modal -->
+  <div class="modal" id="menu-edit-modal">
+    <div class="modal-card menu-edit-card">
+      <div class="modal-head">
+        <h2>⚙️ Menyu Boshqaruvi</h2>
+        <button class="modal-x" id="menu-edit-close">✕</button>
+      </div>
+
+      <div class="warehouse-tabs">
+        <button class="w-tab active" id="me-tab-products">Mahsulotlar</button>
+        <button class="w-tab" id="me-tab-categories">Kategoriyalar</button>
+      </div>
+
+      <!-- Tab: Products -->
+      <div class="w-content active" id="me-content-products">
+        <div class="add-product-form">
+          <h4 id="product-form-title">Yangi mahsulot qo'shish</h4>
+          <input type="hidden" id="edit-prod-id" value="">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kategoriya</label>
+              <select id="new-prod-cat">
+                <!-- Dynamic JS -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nomi</label>
+              <input type="text" id="new-prod-name" placeholder="Masalan: Hamburger Special">
+            </div>
+            <div class="form-group">
+              <label>Narxi (so'm)</label>
+              <input type="number" id="new-prod-price" placeholder="Narxi">
+            </div>
+            <div class="form-group">
+              <label>Tavsifi</label>
+              <input type="text" id="new-prod-desc" placeholder="Tarkibi va ta'rifi">
+            </div>
+            <div class="form-group">
+              <label>Tartib raqami</label>
+              <input type="number" id="new-prod-sort" placeholder="Tartib (masalan: 1, 2...)" value="0">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Mahsulot rasmi</label>
+              <div class="image-upload-wrapper">
+                <input type="text" id="new-prod-imgurl" placeholder="Rasm URL havolasi (ixtiyoriy)">
+                <span style="color:var(--muted); font-size:0.8rem; text-align:center;">yoki</span>
+                <input type="file" id="new-prod-imgfile" accept="image/*" class="file-input-btn">
+              </div>
+              <div id="new-prod-img-preview" class="img-preview-box" style="display:none;">
+                <img src="" alt="Rasm preview" id="prod-preview-img">
+                <button type="button" id="btn-remove-preview-img">✕</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions-row">
+            <button class="btn-confirm" id="btn-save-product">Saqlash</button>
+            <button class="btn-secondary" id="btn-cancel-edit-product" style="display:none;">Bekor qilish</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="w-table">
+            <thead>
+              <tr>
+                <th>Rasm</th>
+                <th>Mahsulot nomi</th>
+                <th>Kategoriya</th>
+                <th>Narxi</th>
+                <th>Harakat</th>
+              </tr>
+            </thead>
+            <tbody id="menu-products-body">
+              <!-- Dynamic JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: Categories -->
+      <div class="w-content" id="me-content-categories">
+        <div class="add-category-form">
+          <h4>Yangi kategoriya qo'shish</h4>
+          <div class="form-row">
+            <input type="text" id="new-cat-name" placeholder="Kategoriya nomi">
+            <input type="text" id="new-cat-icon" placeholder="Emoji (masalan: 🍕)">
+            <input type="number" id="new-cat-sort" placeholder="Tartib raqami" value="1">
+            <button class="btn-confirm" id="btn-add-category">Qo'shish</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="w-table">
+            <thead>
+              <tr>
+                <th>Emoji</th>
+                <th>Kategoriya nomi</th>
+                <th>Tartibi</th>
+                <th>Harakat</th>
+              </tr>
+            </thead>
+            <tbody id="menu-categories-body">
+              <!-- Dynamic JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+  <!-- Boshqaruv paneli (Analitika) modal -->
+  <div class="modal" id="dashboard-modal">
+    <div class="modal-card dashboard-card">
+      <div class="modal-head db-modal-head">
+        <div class="db-title-group">
+          <h2>📊 Boshqaruv paneli</h2>
+          <p class="db-subtitle">Chempion Burger do'konining umumiy ko'rsatkichlari</p>
+        </div>
+        <div class="db-controls">
+          <input type="date" id="db-date-picker" class="db-date-picker">
+          <select id="db-branch-select" class="db-select">
+            <option value="all">Barcha filiallar</option>
+          </select>
+          <button class="modal-x" id="dashboard-close">✕</button>
+        </div>
+      </div>
+
+      <!-- KPI Grid -->
+      <div class="db-kpi-grid">
+        <div class="db-kpi-card">
+          <div class="kpi-info">
+            <span class="kpi-title">Jami tushum</span>
+            <b class="kpi-value" id="db-kpi-revenue">0 so'm</b>
+            <span class="kpi-trend green">▲ +18.5% kechagidan</span>
+          </div>
+          <div class="kpi-icon-box rev">💵</div>
+        </div>
+        <div class="db-kpi-card">
+          <div class="kpi-info">
+            <span class="kpi-title">Buyurtmalar soni</span>
+            <b class="kpi-value" id="db-kpi-orders">0 ta</b>
+            <span class="kpi-trend green">▲ +12.3% kechagidan</span>
+          </div>
+          <div class="kpi-icon-box ord">📈</div>
+        </div>
+        <div class="db-kpi-card">
+          <div class="kpi-info">
+            <span class="kpi-title">O'rtacha chek</span>
+            <b class="kpi-value" id="db-kpi-avg">0 so'm</b>
+            <span class="kpi-trend green">▲ +6.8% kechagidan</span>
+          </div>
+          <div class="kpi-icon-box avg">🧾</div>
+        </div>
+        <div class="db-kpi-card">
+          <div class="kpi-info">
+            <span class="kpi-title">Yangi mijozlar</span>
+            <b class="kpi-value" id="db-kpi-customers">0 ta</b>
+            <span class="kpi-trend green">▲ +16.7% kechagidan</span>
+          </div>
+          <div class="kpi-icon-box cust">👥</div>
+        </div>
+      </div>
+
+      <!-- Charts & Content Grid -->
+      <div class="db-charts-grid">
+        <!-- Card 1: Line Chart -->
+        <div class="db-card chart-card-wide">
+          <div class="card-header">
+            <h3>Savdo tahlili (Kunlik)</h3>
+            <span class="badge">Bugun</span>
+          </div>
+          <div class="line-chart-container" id="db-line-chart-container">
+            <!-- Dynamic SVG Line Chart -->
+          </div>
+        </div>
+
+        <!-- Card 2: Top Products -->
+        <div class="db-card">
+          <div class="card-header">
+            <h3>Ommabop mahsulotlar</h3>
+            <span class="badge">Bugun</span>
+          </div>
+          <div class="db-list" id="db-top-products-list">
+            <!-- Dynamic List -->
+          </div>
+          <div class="card-footer">
+            <a href="#" id="db-link-to-menu">Barcha mahsulotlar ›</a>
+          </div>
+        </div>
+
+        <!-- Card 3: Recent Orders -->
+        <div class="db-card">
+          <div class="card-header">
+            <h3>Oxirgi buyurtmalar</h3>
+            <span class="badge">Hammasi</span>
+          </div>
+          <div class="db-list" id="db-recent-orders-list">
+            <!-- Dynamic List -->
+          </div>
+          <div class="card-footer">
+            <a href="#" id="db-link-to-orders">Barcha buyurtmalar ›</a>
+          </div>
+        </div>
+
+        <!-- Card 4: Bar Chart -->
+        <div class="db-card chart-card-wide">
+          <div class="card-header">
+            <h3>Soatbay savdo grafigi</h3>
+            <span class="badge">Bugun</span>
+          </div>
+          <div class="bar-chart-container" id="db-bar-chart-container">
+            <!-- Dynamic CSS Bar Chart -->
+          </div>
+        </div>
+
+        <!-- Card 5: Donut Chart -->
+        <div class="db-card">
+          <div class="card-header">
+            <h3>To'lov turlari</h3>
+          </div>
+          <div class="donut-chart-container" id="db-donut-chart-container">
+            <!-- Dynamic SVG Donut Chart -->
+          </div>
+        </div>
+
+        <!-- Card 6: Notifications -->
+        <div class="db-card">
+          <div class="card-header">
+            <h3>Tizim bildirishnomalari</h3>
+          </div>
+          <div class="db-notifications-list" id="db-notifications-list">
+            <!-- Dynamic Warnings -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
 </html>
