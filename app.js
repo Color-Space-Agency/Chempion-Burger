@@ -191,11 +191,16 @@ function renderProducts() {
     : state.products.filter(p => p.category_id === state.activeCategory);
   grid.innerHTML = list.map(p => {
     const imgHtml = p.image_url ? `<div class="p-img"><img src="${p.image_url}" alt="${p.name}"></div>` : '';
+    const descHtml = p.description 
+      ? p.description.includes(',')
+        ? p.description.split(',').map(item => `• ${item.trim()}`).join('<br>')
+        : p.description
+      : '';
     return `
       <div class="product-card" data-id="${p.id}">
         ${imgHtml}
         <div class="p-name">${p.name}</div>
-        <div class="p-desc">${p.description || ''}</div>
+        <div class="p-desc">${descHtml}</div>
         <div class="p-price">${fmt(p.price)}</div>
       </div>`;
   }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
