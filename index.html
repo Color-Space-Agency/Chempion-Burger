@@ -125,6 +125,20 @@
         </div>
         <div class="login-error" id="login-error" style="display: none;">Xato login yoki parol!</div>
         <button class="btn-confirm btn-block" id="btn-login">Tizimga Kirish</button>
+        
+        <a href="#" id="btn-toggle-config" style="display:block;margin-top:1.2rem;font-size:0.8rem;text-align:center;color:var(--muted);text-decoration:none;">⚙️ Supabase ulanish sozlamalari</a>
+        
+        <div id="db-config-section" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,0.08);">
+          <div class="form-group" style="margin-bottom:0.8rem;">
+            <label style="font-size:0.75rem;">Supabase URL</label>
+            <input type="text" id="config-sb-url" placeholder="https://xxxx.supabase.co" style="font-size:0.8rem;padding:0.45rem;">
+          </div>
+          <div class="form-group" style="margin-bottom:0.8rem;">
+            <label style="font-size:0.75rem;">Supabase Anon API Key</label>
+            <input type="password" id="config-sb-key" placeholder="API kalitini kiriting" style="font-size:0.8rem;padding:0.45rem;">
+          </div>
+          <button class="btn-confirm btn-block" id="btn-save-config" style="background:rgba(255,255,255,0.1);color:#fff;font-size:0.8rem;padding:0.45rem;margin-top:0.5rem;border:1px solid var(--border-glass);">Ulanishni saqlash</button>
+        </div>
       </div>
     </div>
   </div>

@@ -4,8 +4,8 @@
 // ============================================================
 
 // --- Supabase ulanish ---
-const SUPABASE_URL = "https://ddqoktwkffnufczhdads.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkcW9rdHdrZmZudWZjemhkYWRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAyOTUyODgsImV4cCI6MjA5NTg3MTI4OH0.IL-C7px7_lcmwQxgXhbNlrmy0NAYN6RmQKmiUQpgq-Q";
+const SUPABASE_URL = localStorage.getItem('cb_supabase_url') || "https://ddqoktwkffnufczhdads.supabase.co";
+const SUPABASE_KEY = localStorage.getItem('cb_supabase_key') || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkcW9rdHdrZmZudWZjemhkYWRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyNDk3NDksImV4cCI6MjA1NjgxNTc0OX0.5v37W1775S5Yq2F3oQ4_i9eYxM0o13QZ71S0X4Y0A1Q";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const state = {
@@ -2042,6 +2042,36 @@ document.getElementById('db-link-to-orders').onclick = (e) => {
   e.preventDefault();
   document.getElementById('dashboard-modal').classList.remove('open');
   document.getElementById('open-reports').click();
+};
+
+// --- Supabase Ulanish Sozlamalari Hodisalari ---
+document.getElementById('btn-toggle-config').onclick = (e) => {
+  e.preventDefault();
+  const sec = document.getElementById('db-config-section');
+  if (sec.style.display === 'none') {
+    sec.style.display = 'block';
+    document.getElementById('config-sb-url').value = localStorage.getItem('cb_supabase_url') || '';
+    document.getElementById('config-sb-key').value = localStorage.getItem('cb_supabase_key') || '';
+  } else {
+    sec.style.display = 'none';
+  }
+};
+
+document.getElementById('btn-save-config').onclick = () => {
+  const url = document.getElementById('config-sb-url').value.trim();
+  const key = document.getElementById('config-sb-key').value.trim();
+  
+  if (url && key) {
+    localStorage.setItem('cb_supabase_url', url);
+    localStorage.setItem('cb_supabase_key', key);
+    alert("Supabase ulanish sozlamalari muvaffaqiyatli saqlandi! Sahifa qayta yuklanadi.");
+    window.location.reload();
+  } else {
+    localStorage.removeItem('cb_supabase_url');
+    localStorage.removeItem('cb_supabase_key');
+    alert("Supabase sozlamalari tozalandi va asl holatga qaytarildi! Sahifa qayta yuklanadi.");
+    window.location.reload();
+  }
 };
 
 // ---------- Ishga tushirish ----------
