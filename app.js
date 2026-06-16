@@ -483,9 +483,19 @@ document.getElementById('receipt-close').onclick = () => {
   renderCart();
 };
 
+// ---------- Modallarni Yopish Helper ----------
+function closeAllModals() {
+  const modals = ['dashboard-modal', 'reports-modal', 'warehouse-modal', 'customers-modal', 'menu-edit-modal', 'receipt-modal'];
+  modals.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('open');
+  });
+}
+
 // ---------- Hisobot ----------
 const reportDate = document.getElementById('report-date');
 document.getElementById('open-reports').onclick = () => {
+  closeAllModals();
   reportDate.value = new Date().toISOString().slice(0, 10);
   loadReport();
   document.getElementById('reports-modal').classList.add('open');
@@ -593,6 +603,7 @@ async function handleLogin() {
 }
 
 function handleLogout() {
+  closeAllModals();
   state.currentUser = null;
   state.cart = [];
   renderCart();
@@ -643,6 +654,7 @@ async function loadRecipes() {
 
 // ---------- Ombor Tab / UI Boshqaruvi ----------
 function openWarehouse() {
+  closeAllModals();
   document.getElementById('warehouse-modal').classList.add('open');
   switchWarehouseTab('stock');
 }
@@ -1503,6 +1515,7 @@ document.getElementById('btn-save-recipe-item').onclick = saveRecipeItem;
 
 // Yangi Modallar Hodisalari
 document.getElementById('open-customers').onclick = () => {
+  closeAllModals();
   document.getElementById('customers-modal').classList.add('open');
   loadCustomers();
 };
@@ -1511,6 +1524,7 @@ document.getElementById('customers-close').onclick = () => {
 };
 
 document.getElementById('open-menu-edit').onclick = () => {
+  closeAllModals();
   document.getElementById('menu-edit-modal').classList.add('open');
   switchMenuEditTab('products');
   populateMenuEditCategories();
@@ -1615,6 +1629,7 @@ async function saveNewProductOrder() {
 // ==========================================================================
 
 async function openDashboard() {
+  closeAllModals();
   document.getElementById('dashboard-modal').classList.add('open');
   const datePicker = document.getElementById('db-date-picker');
   
