@@ -1256,3 +1256,85 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   width: 100%;
 }
 
+/* Layout Selector & Variations */
+.menu-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.2rem;
+  gap: 1rem;
+}
+.menu-panel-header .cat-tabs {
+  margin-bottom: 0;
+  flex: 1;
+}
+.layout-selector {
+  display: flex;
+  gap: 0.25rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-glass);
+}
+.lay-btn {
+  padding: 0.4rem 0.75rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+.lay-btn:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+.lay-btn.active {
+  background: var(--primary-gradient);
+  color: #0f0a05;
+  font-weight: 700;
+  box-shadow: 0 0 6px var(--primary-glow);
+}
+
+/* List Left (Rasm chapda) Layout */
+.product-grid.list-left {
+  grid-template-columns: 1fr;
+}
+.product-grid.list-left .product-card {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.8rem 1rem;
+  height: auto;
+}
+.product-grid.list-left .product-card .p-img {
+  width: 70px;
+  height: 70px;
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.product-grid.list-left .product-card .p-name {
+  font-size: 1.05rem;
+  margin-bottom: 0.2rem;
+}
+.product-grid.list-left .product-card .p-desc {
+  margin-bottom: 0;
+}
+.product-grid.list-left .product-card .p-price {
+  margin-top: 0;
+  margin-left: auto;
+  font-size: 1.2rem;
+}
+
+/* Compact (Rasm yashirin) Layout */
+.product-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.product-grid.compact .product-card .p-img {
+  display: none;
+}
+
+

@@ -20,6 +20,7 @@ create table if not exists cb_products (
   price       numeric default 0,
   description text default '',
   image_url   text default '',
+  sort_order  int default 0,
   available   boolean default true
 );
 
@@ -80,6 +81,7 @@ create table if not exists cb_recipes (
 alter table cb_orders add column if not exists payment_method text default 'naqd';
 alter table cb_orders add column if not exists customer_id bigint;
 alter table cb_products add column if not exists image_url text default '';
+alter table cb_products add column if not exists sort_order int default 0;
 
 -- ---------- Constraints Yangilash ----------
 alter table cb_orders drop constraint if exists cb_orders_customer_id_fkey;

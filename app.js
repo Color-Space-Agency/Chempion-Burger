@@ -20,7 +20,8 @@ const state = {
   currentUser: null,
   isDemoMode: false,
   customers: [],
-  selectedCustomer: null
+  selectedCustomer: null,
+  menuLayout: 'grid-top'
 };
 
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
@@ -134,7 +135,8 @@ function enableDemoMode() {
   
   // State-ni to'ldirish
   state.categories = JSON.parse(localStorage.getItem('cb_categories')) || [];
-  state.products = JSON.parse(localStorage.getItem('cb_products')) || [];
+  const localProds = JSON.parse(localStorage.getItem('cb_products')) || [];
+  state.products = localProds.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
   state.inventory = JSON.parse(localStorage.getItem('cb_inventory')) || [];
   state.recipes = JSON.parse(localStorage.getItem('cb_recipes')) || [];
   state.customers = JSON.parse(localStorage.getItem('cb_customers')) || [];
@@ -147,7 +149,7 @@ async function loadMenu() {
   try {
     const [{ data: categories, error: e1 }, { data: products, error: e2 }] = await Promise.all([
       sb.from('cb_categories').select('*').eq('visible', true).order('sort_order'),
-      sb.from('cb_products').select('*').eq('available', true).order('id'),
+      sb.from('cb_products').select('*').eq('available', true).order('sort_order').order('id'),
     ]);
     if (e1 || e2) {
       console.warn('Supabase jadvallari topilmadi, Offline Demo rejim ishga tushmoqda...', e1 || e2);
@@ -197,6 +199,7 @@ function renderProducts() {
         <div class="p-price">${fmt(p.price)}</div>
       </div>`;
   }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
+  applyMenuLayout();
   grid.querySelectorAll('.product-card').forEach(card => card.onclick = () => addToCart(Number(card.dataset.id)));
 }
 
@@ -1201,6 +1204,8 @@ async function saveProduct() {
   const description = descInput.value.trim();
   const editId = editIdField.value ? Number(editIdField.value) : null;
   const imageUrl = currentBase64Image;
+  const sortInput = document.getElementById('new-prod-sort');
+  const sortOrder = parseInt(sortInput.value) || 0;
   
   if (!name || isNaN(price) || price <= 0) {
     alert("Iltimos, mahsulot nomi va to'g'ri narxini kiriting!");
@@ -1213,6 +1218,7 @@ async function saveProduct() {
     price,
     description,
     image_url: imageUrl,
+    sort_order: sortOrder,
     available: true
   };
   
@@ -1257,6 +1263,7 @@ function resetProductForm() {
   document.getElementById('new-prod-name').value = '';
   document.getElementById('new-prod-price').value = '';
   document.getElementById('new-prod-desc').value = '';
+  document.getElementById('new-prod-sort').value = '0';
   document.getElementById('new-prod-imgurl').value = '';
   document.getElementById('new-prod-imgfile').value = '';
   currentBase64Image = '';
@@ -1275,6 +1282,7 @@ function editProduct(id) {
   document.getElementById('new-prod-name').value = p.name;
   document.getElementById('new-prod-price').value = p.price;
   document.getElementById('new-prod-desc').value = p.description || '';
+  document.getElementById('new-prod-sort').value = p.sort_order || 0;
   
   if (p.image_url) {
     currentBase64Image = p.image_url;
@@ -1511,6 +1519,40 @@ document.getElementById('login-username').addEventListener('keydown', (e) => {
 document.getElementById('login-password').addEventListener('keydown', (e) => {
   if (e.key === 'Enter') handleLogin();
 });
+
+// Layout Boshqaruvi
+document.getElementById('layout-selector').onclick = (e) => {
+  const btn = e.target.closest('.lay-btn');
+  if (!btn) return;
+  
+  document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  
+  state.menuLayout = btn.dataset.layout;
+  localStorage.setItem('cb_menu_layout', state.menuLayout);
+  
+  applyMenuLayout();
+};
+
+function applyMenuLayout() {
+  const grid = document.getElementById('product-grid');
+  if (!grid) return;
+  
+  grid.className = 'product-grid'; // reset
+  if (state.menuLayout === 'list-left') {
+    grid.classList.add('list-left');
+  } else if (state.menuLayout === 'compact') {
+    grid.classList.add('compact');
+  }
+}
+
+// Layoutni yuklash
+state.menuLayout = localStorage.getItem('cb_menu_layout') || 'grid-top';
+const activeLayoutBtn = document.querySelector(`.lay-btn[data-layout="${state.menuLayout}"]`);
+if (activeLayoutBtn) {
+  document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
+  activeLayoutBtn.classList.add('active');
+}
 
 // ---------- Ishga tushirish ----------
 renderCart();
