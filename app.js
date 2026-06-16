@@ -1138,10 +1138,37 @@ function setupImageHandlers() {
     
     const reader = new FileReader();
     reader.onload = (event) => {
-      currentBase64Image = event.target.result;
-      previewImg.src = currentBase64Image;
-      imgPreviewBox.style.display = 'block';
-      imgUrlInput.value = '';
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 300;
+        const MAX_HEIGHT = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        currentBase64Image = canvas.toDataURL('image/jpeg', 0.75);
+        previewImg.src = currentBase64Image;
+        imgPreviewBox.style.display = 'block';
+        imgUrlInput.value = '';
+      };
+      img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   });
@@ -1483,6 +1510,14 @@ document.getElementById('btn-cancel-edit-product').onclick = resetProductForm;
 // Autocomplete va rasmlar sozlamalari
 setupCustomerAutocomplete();
 setupImageHandlers();
+
+// Enter tugmasi orqali login qilish
+document.getElementById('login-username').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleLogin();
+});
+document.getElementById('login-password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') handleLogin();
+});
 
 // ---------- Ishga tushirish ----------
 renderCart();
