@@ -10,7 +10,8 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header class="topbar">
+  <div class="app-container">
+    <header class="topbar">
     <div class="brand">
       <img src="logo.png" alt="Chempion Burger Logo" class="brand-logo">
       <small>POS</small>
@@ -20,6 +21,12 @@
       <button class="otype active" data-type="dine_in">🍽️ Zal</button>
       <button class="otype" data-type="takeout">🥡 Olib ketish</button>
       <button class="otype" data-type="delivery">🛵 Yetkazib berish</button>
+    </div>
+    
+    <div class="layout-selector" id="layout-selector">
+      <button class="lay-btn active" data-layout="web">💻 Web</button>
+      <button class="lay-btn" data-layout="ipad">📟 iPad</button>
+      <button class="lay-btn" data-layout="mobile">📱 Mobil</button>
     </div>
     
     <div class="topbar-actions">
@@ -101,7 +108,7 @@
       </div>
 
       <div class="cart-actions">
-        <button class="btn-clear" id="btn-clear">Tozalash</button>
+        <button class="btn-clear" id="btn-clear">❌ Bekor qilish</button>
         <button class="btn-confirm" id="btn-confirm">✅ Tasdiqlash</button>
       </div>
     </aside>
@@ -525,6 +532,22 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile Navigation Bar (Visible only on mobile/ipad simulated or real) -->
+  <div class="mobile-nav" id="mobile-nav" style="display: none;">
+    <button class="mnav-btn active" id="mnav-menu">📋 Menyu</button>
+    <button class="mnav-btn" id="mnav-cart">
+      🛒 Savat <span class="mnav-badge" id="mnav-cart-count">0</span>
+    </button>
+  </div>
+
+  <!-- Floating Cart Panel for Mobile -->
+  <div class="floating-cart-btn" id="floating-cart-btn" style="display: none;">
+    <span>🛒 Savat: <b id="float-cart-count">0</b> taom</span>
+    <span>Jami: <b id="float-cart-total">0 so'm</b></span>
+  </div>
+
+  </div> <!-- End of .app-container -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>

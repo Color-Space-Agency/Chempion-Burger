@@ -191,6 +191,7 @@ function renderProducts() {
   const list = state.activeCategory === 'all'
     ? state.products
     : state.products.filter(p => p.category_id === state.activeCategory);
+  
   grid.innerHTML = list.map(p => {
     const imgHtml = p.image_url ? `<div class="p-img"><img src="${p.image_url}" alt="${p.name}"></div>` : '';
     const descHtml = p.description 
@@ -198,13 +199,29 @@ function renderProducts() {
         ? p.description.split(',').map(item => `• ${item.trim()}`).join('<br>')
         : p.description
       : '';
+
+    // Savatda borligini tekshirish
+    const cartItem = state.cart.find(item => item.product_id === p.id);
+    const qtySelectorHtml = cartItem 
+      ? `
+        <div class="card-qty-control" onclick="event.stopPropagation();">
+          <button class="btn-card-qty" data-id="${p.id}" data-action="minus">−</button>
+          <span class="card-qty-val">${cartItem.qty}</span>
+          <button class="btn-card-qty" data-id="${p.id}" data-action="plus">+</button>
+        </div>
+      `
+      : `<div class="card-add-badge">+ Qo'shish</div>`;
+
     return `
       <div class="product-card" data-id="${p.id}">
         <div class="drag-handle" title="Tartibni o'zgartirish">☰</div>
         ${imgHtml}
         <div class="p-name">${p.name}</div>
         <div class="p-desc">${descHtml}</div>
-        <div class="p-price">${fmt(p.price)}</div>
+        <div class="p-footer">
+          <div class="p-price">${fmt(p.price)}</div>
+          ${qtySelectorHtml}
+        </div>
       </div>`;
   }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
   
@@ -212,10 +229,24 @@ function renderProducts() {
   
   grid.querySelectorAll('.product-card').forEach(card => {
     card.onclick = (e) => {
-      if (e.target.classList.contains('drag-handle')) {
+      if (e.target.classList.contains('drag-handle') || e.target.closest('.card-qty-control')) {
         return;
       }
       addToCart(Number(card.dataset.id));
+    };
+  });
+
+  // Card qty plus/minus click handlers
+  grid.querySelectorAll('.btn-card-qty').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      const action = btn.dataset.action;
+      if (action === 'plus') {
+        changeQty(id, 1);
+      } else if (action === 'minus') {
+        changeQty(id, -1);
+      }
     };
   });
 }
@@ -255,6 +286,24 @@ function renderCart() {
     box.querySelectorAll('.ci-qty button').forEach(b => b.onclick = () => changeQty(Number(b.dataset.id), Number(b.dataset.d)));
   }
   updateSummary();
+
+  // Mobil navigatsiya va suzuvchi savatni yangilash
+  const totalItems = state.cart.reduce((sum, item) => sum + item.qty, 0);
+  const mCount = document.getElementById('mnav-cart-count');
+  if (mCount) mCount.innerText = totalItems;
+  
+  const totalSum = state.cart.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const fCount = document.getElementById('float-cart-count');
+  const fTotal = document.getElementById('float-cart-total');
+  if (fCount) fCount.innerText = totalItems;
+  if (fTotal) fTotal.innerText = fmt(totalSum);
+
+  if (typeof handleMobileLayoutSwitch === 'function') {
+    handleMobileLayoutSwitch();
+  }
+
+  // Mahsulot kartalaridagi + va - hisoblagichlarni sinxronlash
+  renderProducts();
 }
 
 function calcTotals() {
@@ -306,7 +355,13 @@ document.getElementById('order-types').addEventListener('click', e => {
 });
 document.getElementById('service-pct').oninput = updateSummary;
 document.getElementById('discount-input').oninput = updateSummary;
-document.getElementById('btn-clear').onclick = () => { state.cart = []; renderCart(); };
+document.getElementById('btn-clear').onclick = () => {
+  if (state.cart.length === 0) return;
+  if (confirm("Haqiqatan ham ushbu buyurtmani bekor qilmoqchimisiz? Savatdagi barcha taomlar o'chiriladi.")) {
+    state.cart = [];
+    renderCart();
+  }
+};
 
 // ---------- Tasdiqlash (Zaxirani kamaytirish va saqlash) ----------
 document.getElementById('btn-confirm').onclick = async () => {
@@ -2078,4 +2133,98 @@ document.getElementById('btn-save-config').onclick = () => {
 
 // ---------- Ishga tushirish ----------
 renderCart();
+
+// --- Layout Selector & Responsive Simulator Logic ---
+function handleMobileLayoutSwitch() {
+  const isMobileSim = document.body.classList.contains('sim-mobile');
+  const isIpadSim = document.body.classList.contains('sim-ipad');
+  const isRealMobile = window.innerWidth <= 820;
+  
+  const mobileNav = document.getElementById('mobile-nav');
+  const floatingCart = document.getElementById('floating-cart-btn');
+  const menuPanel = document.querySelector('.menu-panel');
+  const cartPanel = document.querySelector('.cart-panel');
+  const mainLayout = document.querySelector('.layout');
+  
+  if (!mobileNav || !menuPanel || !cartPanel || !mainLayout) return;
+
+  if (isMobileSim || (isRealMobile && !isIpadSim && !document.body.classList.contains('sim-web'))) {
+    // Show Mobile Navigation Bar
+    mobileNav.style.display = 'flex';
+    mainLayout.classList.add('mobile-stacked');
+    
+    // Switch between Menu panel and Cart panel based on active tab
+    const isCartActive = document.getElementById('mnav-cart').classList.contains('active');
+    if (isCartActive) {
+      menuPanel.style.display = 'none';
+      cartPanel.style.display = 'flex';
+      floatingCart.style.display = 'none';
+    } else {
+      menuPanel.style.display = 'block';
+      cartPanel.style.display = 'none';
+      
+      // Show floating cart button only if cart has items
+      const totalItems = state.cart.reduce((sum, item) => sum + item.qty, 0);
+      if (totalItems > 0) {
+        floatingCart.style.display = 'flex';
+        document.getElementById('float-cart-count').innerText = totalItems;
+        document.getElementById('float-cart-total').innerText = fmt(state.cart.reduce((sum, item) => sum + item.price * item.qty, 0));
+      } else {
+        floatingCart.style.display = 'none';
+      }
+    }
+  } else {
+    // Standard Desktop or Tablet View (Side-by-side Layout)
+    mobileNav.style.display = 'none';
+    floatingCart.style.display = 'none';
+    mainLayout.classList.remove('mobile-stacked');
+    menuPanel.style.display = 'block';
+    cartPanel.style.display = 'flex';
+  }
+}
+
+// Bind layout simulator buttons
+document.querySelectorAll('.lay-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    
+    const layout = btn.dataset.layout;
+    document.body.classList.remove('sim-web', 'sim-ipad', 'sim-mobile');
+    
+    if (layout === 'ipad') {
+      document.body.classList.add('sim-ipad');
+    } else if (layout === 'mobile') {
+      document.body.classList.add('sim-mobile');
+    } else {
+      document.body.classList.add('sim-web');
+    }
+    
+    handleMobileLayoutSwitch();
+  };
+});
+
+// Bind mobile navigation tabs
+document.getElementById('mnav-menu').onclick = () => {
+  document.getElementById('mnav-menu').classList.add('active');
+  document.getElementById('mnav-cart').classList.remove('active');
+  handleMobileLayoutSwitch();
+};
+
+document.getElementById('mnav-cart').onclick = () => {
+  document.getElementById('mnav-cart').classList.add('active');
+  document.getElementById('mnav-menu').classList.remove('active');
+  handleMobileLayoutSwitch();
+};
+
+// Bind floating cart button
+document.getElementById('floating-cart-btn').onclick = () => {
+  document.getElementById('mnav-cart').click();
+};
+
+// Window resize observer
+window.addEventListener('resize', handleMobileLayoutSwitch);
+
+// Initial check
+handleMobileLayoutSwitch();
 
