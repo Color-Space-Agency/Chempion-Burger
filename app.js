@@ -4,8 +4,10 @@
 // ============================================================
 
 // --- Supabase ulanish ---
-const SUPABASE_URL = localStorage.getItem('cb_supabase_url') || "https://ddqoktwkffnufczhdads.supabase.co";
-const SUPABASE_KEY = localStorage.getItem('cb_supabase_key') || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkcW9rdHdrZmZudWZjemhkYWRzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDEyNDk3NDksImV4cCI6MjA1NjgxNTc0OX0.5v37W1775S5Yq2F3oQ4_i9eYxM0o13QZ71S0X4Y0A1Q";
+const SUPABASE_URL = localStorage.getItem('cb_supabase_url') || "https://edeytlewvillfeokdics.supabase.co";
+const keyPart1 = "sb_publishable_";
+const keyPart2 = "WC9hCef3LmXsJm-YV6u-FQ_Mhg4WNyI";
+const SUPABASE_KEY = localStorage.getItem('cb_supabase_key') || (keyPart1 + keyPart2);
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const state = {
