@@ -2275,7 +2275,6 @@ export default function App() {
       <div className="modal open" id="login-modal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div className="modal-card login-card">
           <div className="login-header">
-            <img src="/logo.png" alt="Chempion Burger Logo" className="login-logo-img" style={{ height: '70px', marginBottom: '1rem' }} />
             <p>Tizimga kirish uchun login va parolni kiriting</p>
           </div>
           <div className="login-form">
