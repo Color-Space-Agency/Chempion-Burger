@@ -36,15 +36,8 @@ function enableDemoMode() {
   state.isDemoMode = true;
   console.warn("Offline Demo rejimi yoqildi (Supabase jadvallari topilmadi).");
   
-  // Demo ogohlantirish bannerini qo'shish
-  let banner = document.getElementById('demo-banner');
-  if (!banner) {
-    banner = document.createElement('div');
-    banner.id = 'demo-banner';
-    banner.className = 'demo-banner';
-    banner.innerHTML = `⚠️ <b>Demo Rejim</b> (Supabase'ga ulanmadi. Ma'lumotlar brauzerda saqlanmoqda. Doimiy saqlash uchun <b>supabase_setup.sql</b> ni yuklang)`;
-    document.body.prepend(banner);
-  }
+  // Demo ogohlantirish bannerini qo'shish o'chirildi
+
   
   // Kategoriyalarni localStorage'ga to'ldirish
   if (!localStorage.getItem('cb_categories')) {
