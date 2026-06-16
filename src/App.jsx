@@ -7,7 +7,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const TYPE_LABEL = { dine_in: 'Zal', takeout: 'Olib ketish', delivery: 'Yetkazib berish' };
-const PM_LABEL = { naqd: '💵 Naqd', karta: '💳 Karta' };
+const PM_LABEL = { naqd: '💵 Naqd', karta: '💳 Karta', online: '🌐 Online' };
 
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
 
@@ -35,7 +35,11 @@ export default function App() {
   const [servicePct, setServicePct] = useState(0);
   const [discountInput, setDiscountInput] = useState(0);
 
-  // --- Modal Open States ---
+  // --- Admin Navigation ---
+  const [adminTab, setAdminTab] = useState("dashboard"); // 'dashboard', 'orders', 'menu', 'warehouse', 'customers', 'reports'
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
+
+  // --- Modal Open States (Used by Cashier, Admin uses Fullscreen Tabs) ---
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [showCustomersModal, setShowCustomersModal] = useState(false);
   const [showMenuEditModal, setShowMenuEditModal] = useState(false);
@@ -46,6 +50,8 @@ export default function App() {
   const [inventory, setInventory] = useState([]);
   const [recipes, setRecipes] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [orderItems, setOrderItems] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [searchCustomerVal, setSearchCustomerVal] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
@@ -255,6 +261,27 @@ export default function App() {
     }
   };
 
+  const loadOrdersAndItems = async (demo = isDemoMode) => {
+    if (demo) {
+      const localOrders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+      const localItems = JSON.parse(localStorage.getItem('cb_order_items')) || [];
+      setOrders(localOrders.sort((a,b) => b.id - a.id));
+      setOrderItems(localItems);
+      return;
+    }
+    try {
+      const { data: oData, error: oErr } = await sb.from('cb_orders').select('*').order('created_at', { ascending: false });
+      if (oErr) throw oErr;
+      setOrders(oData || []);
+      
+      const { data: iData, error: iErr } = await sb.from('cb_order_items').select('*');
+      if (iErr) throw iErr;
+      setOrderItems(iData || []);
+    } catch (err) {
+      console.error("Buyurtmalar yuklanmadi:", err);
+    }
+  };
+
   // --- Sync database selection product list to recipe form product select ---
   useEffect(() => {
     if (products.length > 0 && !recipeProductSelect) {
@@ -272,12 +299,12 @@ export default function App() {
       setUser({ role: 'cashier', label: 'Sotuvchi' });
     } else if (userField === 'admin' && passField === 'admin123') {
       setUser({ role: 'admin', label: 'Admin' });
+      setAdminTab("dashboard");
     } else {
       setLoginError("Noto'g'ri login yoki parol!");
     }
   };
 
-  // Key handler for Enter key press on Login inputs (Tuzatish - Bug 1)
   const handleLoginKeyDown = (e) => {
     if (e.key === 'Enter') {
       handleLogin();
@@ -300,6 +327,7 @@ export default function App() {
       loadInventoryData();
       loadRecipesData();
       loadCustomersData();
+      loadOrdersAndItems();
     }
   }, [user, isDemoMode]);
 
@@ -339,7 +367,6 @@ export default function App() {
     if (selectedCustomer) {
       isBonusOrder = (selectedCustomer.purchase_count + 1) % 5 === 0;
       if (isBonusOrder && cart.length > 0) {
-        // Find the cheapest item in the cart (for 1 unit)
         let cheapest = cart[0];
         for (const item of cart) {
           if (item.price < cheapest.price) {
@@ -431,6 +458,7 @@ export default function App() {
         setReceiptOrder(newOrder);
         setReceiptTotals(t);
         setShowReceiptModal(true);
+        await loadOrdersAndItems(true);
       } catch (e) {
         alert("Xatolik: " + e.message);
       }
@@ -495,6 +523,7 @@ export default function App() {
       setReceiptOrder(order);
       setReceiptTotals(t);
       setShowReceiptModal(true);
+      await loadOrdersAndItems();
     } catch (err) {
       alert('Buyurtma saqlanmadi: ' + (err.message || err));
       console.error(err);
@@ -766,7 +795,6 @@ export default function App() {
   });
 
   // ---------- Menu Management Panel Handlers ----------
-  // Reset product form clears input files correctly (Tuzatish - Bug 2)
   const resetProductForm = () => {
     setEditProdId("");
     setNewProdName("");
@@ -776,7 +804,7 @@ export default function App() {
     setNewProdImgUrl("");
     setCurrentBase64Image("");
     if (fileInputRef.current) {
-      fileInputRef.current.value = ""; // Clears the actual DOM input
+      fileInputRef.current.value = "";
     }
   };
 
@@ -813,7 +841,7 @@ export default function App() {
 
         const base64 = canvas.toDataURL('image/jpeg', 0.75);
         setCurrentBase64Image(base64);
-        setNewProdImgUrl(""); // Clear URL input when a file is selected
+        setNewProdImgUrl("");
       };
       img.src = event.target.result;
     };
@@ -895,9 +923,6 @@ export default function App() {
       setCurrentBase64Image("");
       setNewProdImgUrl("");
     }
-    // Scroll modal form area to top if possible
-    const formCard = document.querySelector('.menu-edit-card');
-    if (formCard) formCard.scrollTop = 0;
   };
 
   const deleteProduct = async (id, name) => {
@@ -1092,7 +1117,6 @@ export default function App() {
 
     const categoryId = activeCategory;
     
-    // Sort logic within the active category
     let sortedProductsList = [...products];
     const categoryProds = activeCategory === 'all'
       ? sortedProductsList
@@ -1101,7 +1125,6 @@ export default function App() {
     const draggedItem = categoryProds[draggingIndex];
     const targetItem = categoryProds[index];
 
-    // Rearrange within global products list
     const draggedGlobalIdx = products.findIndex(p => p.id === draggedItem.id);
     const targetGlobalIdx = products.findIndex(p => p.id === targetItem.id);
 
@@ -1109,7 +1132,6 @@ export default function App() {
     const [removed] = reordered.splice(draggedGlobalIdx, 1);
     reordered.splice(targetGlobalIdx, 0, removed);
 
-    // Update sort order values
     reordered.forEach((p, idx) => {
       p.sort_order = idx + 1;
     });
@@ -1117,7 +1139,6 @@ export default function App() {
     setProducts(reordered);
     setDraggingIndex(null);
 
-    // Save order
     if (isDemoMode) {
       localStorage.setItem('cb_products', JSON.stringify(reordered));
       return;
@@ -1138,369 +1159,708 @@ export default function App() {
     ? products
     : products.filter(p => p.category_id === activeCategory);
 
-  // ---------- Login Screen Rendering ----------
-  if (!user) {
-    return (
-      <div className="modal open" id="login-modal" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="modal-card login-card">
-          <div className="login-header">
-            <img src="/logo.png" alt="Chempion Burger Logo" className="login-logo-img" style={{ height: '70px', marginBottom: '1rem' }} />
-            <p>Tizimga kirish uchun login va parolni kiriting</p>
-          </div>
-          <div className="login-form">
-            <div className="form-group">
-              <label>Profil nomi</label>
-              <input 
-                type="text" 
-                placeholder="Sotuvchi yoki Admin" 
-                value={loginUsername}
-                onChange={e => setLoginUsername(e.target.value)}
-                onKeyDown={handleLoginKeyDown}
-                required 
-              />
-            </div>
-            <div className="form-group">
-              <label>Parol</label>
-              <input 
-                type="password" 
-                placeholder="••••" 
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
-                onKeyDown={handleLoginKeyDown}
-                required 
-              />
-            </div>
-            {loginError && <div className="login-error" style={{ display: 'block' }}>{loginError}</div>}
-            <button className="btn-confirm btn-block" onClick={handleLogin}>Tizimga Kirish</button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // ---------- Dynamic Admin Dashboard Calculations ----------
+  const getDashboardData = () => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayOrders = orders.filter(o => o.created_at && o.created_at.slice(0, 10) === todayStr);
 
-  // ---------- Main App Rendering ----------
-  return (
-    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      
-      {/* Topbar Header */}
-      <header className="topbar">
-        <div className="brand">
-          <img src="/logo.png" alt="Chempion Burger Logo" className="brand-logo" />
-          <small>POS</small>
-        </div>
-        
-        <div className="order-types">
-          <button 
-            className={`otype ${orderType === 'dine_in' ? 'active' : ''}`} 
-            onClick={() => setOrderType('dine_in')}
-          >
-            🍽️ Zal
-          </button>
-          <button 
-            className={`otype ${orderType === 'takeout' ? 'active' : ''}`} 
-            onClick={() => setOrderType('takeout')}
-          >
-            🥡 Olib ketish
-          </button>
-          <button 
-            className={`otype ${orderType === 'delivery' ? 'active' : ''}`} 
-            onClick={() => setOrderType('delivery')}
-          >
-            🏍️ Yetkazib berish
-          </button>
-        </div>
-        
-        <div className="topbar-actions">
-          {user.role === 'admin' && (
-            <>
-              <button className="btn-report" onClick={handleOpenReports}>📊 Hisobot</button>
-              <button className="btn-report" onClick={() => { setShowWarehouseModal(true); setActiveWarehouseTab('stock'); }}>📦 Ombor</button>
-              <button className="btn-report" onClick={() => { setShowMenuEditModal(true); setActiveMenuEditTab('products'); }}>⚙️ Menyu</button>
-            </>
-          )}
-          <button className="btn-report" onClick={() => setShowCustomersModal(true)}>👥 Mijozlar</button>
-          
-          <div className="user-badge" style={{ display: 'flex' }}>
-            <span className="user-icon">👤</span>
-            <span className="user-name">{user.label}</span>
-            <button className="btn-logout" onClick={handleLogout} title="Chiqish">🚪</button>
-          </div>
-        </div>
-      </header>
+    const todayRevenue = todayOrders.reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const todayOrdersCount = todayOrders.length;
+    const todayAverageTicket = todayOrdersCount > 0 ? Math.round(todayRevenue / todayOrdersCount) : 0;
+    
+    const newClientsCount = customers.filter(c => c.created_at && c.created_at.slice(0, 10) === todayStr).length;
 
-      {/* Main Layout Workspace */}
-      <main className="layout" style={{ flex: 1, display: "flex" }}>
-        
-        {/* Left Side: Product Menu */}
-        <section className="menu-panel" style={{ flex: 1 }}>
-          <div className="menu-panel-header">
-            <div className="cat-tabs">
-              <button 
-                className={`cat-tab ${activeCategory === 'all' ? 'active' : ''}`}
-                onClick={() => setActiveCategory('all')}
-              >
-                Hammasi
-              </button>
-              {categories.map(c => (
-                <button 
-                  key={c.id}
-                  className={`cat-tab ${activeCategory === c.id ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(c.id)}
-                >
-                  {c.icon || ''} {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
-          
-          <div className="product-grid">
-            {visibleProductsList.map((p, index) => {
-              // Format descriptions to put list items on new lines if commas exist
-              const descHtml = p.description 
-                ? p.description.includes(',')
-                  ? p.description.split(',').map((item, idx) => <React.Fragment key={idx}>• {item.trim()}<br/></React.Fragment>)
-                  : p.description
-                : '';
-              
-              return (
-                <div 
-                  className="product-card" 
-                  key={p.id}
-                  data-id={p.id}
-                  draggable={user.role === 'admin'}
-                  onDragStart={(e) => handleDragStart(e, index)}
-                  onDragOver={(e) => handleDragOver(e, index)}
-                  onDrop={(e) => handleDrop(e, index)}
-                  onClick={(e) => {
-                    if (e.target.classList.contains('drag-handle')) return;
-                    addToCart(p.id);
-                  }}
-                >
-                  {user.role === 'admin' && (
-                    <div className="drag-handle" title="Tartibni o'zgartirish">☰</div>
-                  )}
-                  {p.image_url && (
-                    <div className="p-img">
-                      <img src={p.image_url} alt={p.name} />
-                    </div>
-                  )}
-                  <div className="p-name">{p.name}</div>
-                  <div className="p-desc">{descHtml}</div>
-                  <div className="p-price">{fmt(p.price)}</div>
-                </div>
-              );
-            })}
-            {visibleProductsList.length === 0 && (
-              <div style={{ color: "var(--muted)", padding: "2rem", width: "100%", textAlign: "center" }}>
-                Bu bo'limda mahsulot yo'q.
+    // Payment breakdown today
+    const cashRevenue = todayOrders.filter(o => o.payment_method === 'naqd').reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const cardRevenue = todayOrders.filter(o => o.payment_method === 'karta').reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const onlineRevenue = todayOrders.filter(o => o.payment_method === 'online').reduce((sum, o) => sum + Number(o.total || 0), 0);
+    const totalPaymentRevenue = cashRevenue + cardRevenue + onlineRevenue || 1;
+
+    const cashPct = Math.round((cashRevenue / totalPaymentRevenue) * 100);
+    const cardPct = Math.round((cardRevenue / totalPaymentRevenue) * 100);
+    const onlinePct = Math.max(0, 100 - cashPct - cardPct);
+
+    // Popular Items top 5 today
+    const todayOrderIds = todayOrders.map(o => o.id);
+    const todayItems = orderItems.filter(item => todayOrderIds.includes(item.order_id));
+    const productAgg = {};
+    
+    const itemsSource = todayItems.length > 0 ? todayItems : orderItems;
+    itemsSource.forEach(item => {
+      productAgg[item.product_id] = productAgg[item.product_id] || { name: item.name, qty: 0, revenue: 0 };
+      productAgg[item.product_id].qty += Number(item.qty || 0);
+      productAgg[item.product_id].revenue += Number(item.subtotal || 0);
+    });
+
+    const popularProductsToShow = Object.entries(productAgg)
+      .map(([id, data]) => ({ id: Number(id), ...data }))
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 5);
+
+    // Notifications (Low Stock, New Customers, Targets)
+    const notificationsList = [];
+    
+    // 1. Low stock warnings
+    inventory.filter(ing => ing.stock <= (ing.min_stock || 5)).forEach(ing => {
+      notificationsList.push({
+        id: `low-${ing.id}`,
+        type: 'warning',
+        icon: '⚠️',
+        text: `Omborda "${ing.name}" masallig'i kamaymoqda. Qoldiq: ${ing.stock} ${ing.unit}`,
+        time: 'Hozir'
+      });
+    });
+
+    // 2. New customers alerts
+    customers.filter(c => c.created_at && c.created_at.slice(0, 10) === todayStr).forEach(c => {
+      notificationsList.push({
+        id: `cust-${c.id}`,
+        type: 'info',
+        icon: '👥',
+        text: `Yangi mijoz ro'yxatga olindi: ${c.name} (${c.phone})`,
+        time: 'Bugun'
+      });
+    });
+
+    // 3. Goal reached alert
+    if (todayRevenue >= 3000000) {
+      notificationsList.push({
+        id: 'goal-reached',
+        type: 'success',
+        icon: '🏆',
+        text: `Kunlik ko'zlangan reja bajarildi! Tushum: ${fmt(todayRevenue)}`,
+        time: 'Bugun'
+      });
+    }
+
+    // Default notifications if list is empty
+    if (notificationsList.length === 0) {
+      notificationsList.push({
+        id: 'welcome',
+        type: 'success',
+        icon: '✨',
+        text: 'Tizim ishga tayyor. Hech qanday kamchilik aniqlanmadi.',
+        time: '08:00'
+      });
+    }
+
+    // SVG Line Chart points mapping
+    const salesByInterval = [0, 0, 0, 0, 0, 0]; // 4-hour intervals
+    const ordersForIntervals = todayOrders.length > 0 ? todayOrders : orders.slice(0, 20); // fallback to latest 20 if none today
+    ordersForIntervals.forEach(o => {
+      const dateObj = new Date(o.created_at || Date.now());
+      const hours = dateObj.getHours();
+      const idx = Math.floor(hours / 4);
+      if (idx >= 0 && idx < 6) {
+        salesByInterval[idx] += Number(o.total || 0);
+      }
+    });
+
+    const maxIntervalVal = Math.max(...salesByInterval) || 100000;
+    const svgPoints = salesByInterval.map((val, idx) => {
+      const x = 10 + idx * (280 / 5);
+      const y = 110 - (val / maxIntervalVal) * 90;
+      return { x, y, val };
+    });
+
+    let pathD = "";
+    if (svgPoints.length > 0) {
+      pathD = `M ${svgPoints[0].x} ${svgPoints[0].y} ` + svgPoints.slice(1).map(p => `L ${p.x} ${p.y}`).join(" ");
+    }
+    let areaD = "";
+    if (svgPoints.length > 0) {
+      areaD = `${pathD} L ${svgPoints[svgPoints.length-1].x} 110 L ${svgPoints[0].x} 110 Z`;
+    }
+
+    // SVG Bar Chart hourly mapping
+    const hoursArray = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+    const salesByHour = hoursArray.map(h => {
+      return ordersForIntervals.filter(o => {
+        const dateObj = new Date(o.created_at || Date.now());
+        return dateObj.getHours() === h;
+      }).reduce((sum, o) => sum + Number(o.total || 0), 0);
+    });
+    const maxHourVal = Math.max(...salesByHour) || 100000;
+
+    // SVG Donut Calculations
+    const circ = 251.2;
+    const cashDash = (cashPct / 100) * circ;
+    const cardDash = (cardPct / 100) * circ;
+    const onlineDash = (onlinePct / 100) * circ;
+    
+    const cashOffset = 0;
+    const cardOffset = -cashDash;
+    const onlineOffset = -(cashDash + cardDash);
+
+    return {
+      todayRevenue,
+      todayOrdersCount,
+      todayAverageTicket,
+      newClientsCount,
+      cashRevenue,
+      cardRevenue,
+      onlineRevenue,
+      cashPct,
+      cardPct,
+      onlinePct,
+      popularProductsToShow,
+      notificationsList,
+      svgPoints,
+      pathD,
+      areaD,
+      hoursArray,
+      salesByHour,
+      maxHourVal,
+      circ,
+      cashDash,
+      cardDash,
+      onlineDash,
+      cashOffset,
+      cardOffset,
+      onlineOffset
+    };
+  };
+
+  // ---------- Admin Tab Content Rendering ----------
+  const renderAdminTabContent = () => {
+    const dash = getDashboardData();
+
+    switch (adminTab) {
+      case "dashboard":
+        return (
+          <>
+            {/* Dashboard Title & Actions Row */}
+            <div className="dashboard-header-row">
+              <div className="dashboard-title-area">
+                <h2>Boshqaruv paneli</h2>
+                <p>Chempion Burger do'konining umumiy ko'rsatkichlari</p>
               </div>
-            )}
-          </div>
-        </section>
-
-        {/* Right Side: Cart / Checkout Panel */}
-        <aside className="cart-panel" style={{ width: "380px" }}>
-          <div className="cart-head">
-            <h2>Buyurtma</h2>
-            <span className="cart-type">{TYPE_LABEL[orderType]}</span>
-          </div>
-
-          {orderType === 'dine_in' && (
-            <div className="table-row">
-              <label>Stol №</label>
-              <input 
-                type="text" 
-                placeholder="masalan: 5" 
-                value={tableNumber}
-                onChange={e => setTableNumber(e.target.value)}
-              />
+              <div className="dashboard-header-actions">
+                <input 
+                  type="date" 
+                  className="dashboard-date-selector" 
+                  value={reportDate} 
+                  onChange={e => { setReportDate(e.target.value); loadReportData(e.target.value); }}
+                />
+                <select className="dashboard-branch-selector" defaultValue="all">
+                  <option value="all">Barcha filiallar</option>
+                </select>
+                <button className="notification-bell-btn" onClick={() => setAdminTab("dashboard")}>
+                  🔔
+                  <span className="bell-badge">{dash.notificationsList.length}</span>
+                </button>
+              </div>
             </div>
-          )}
 
-          <div className="payment-row">
-            <label>To'lov usuli</label>
-            <div className="payment-methods">
-              <button 
-                className={`pm-btn ${paymentMethod === 'naqd' ? 'active' : ''}`}
-                onClick={() => setPaymentMethod('naqd')}
-              >
-                💵 Naqd
-              </button>
-              <button 
-                className={`pm-btn ${paymentMethod === 'karta' ? 'active' : ''}`}
-                onClick={() => setPaymentMethod('karta')}
-              >
-                💳 Karta
-              </button>
+            {/* Top KPI Cards Grid */}
+            <div className="dashboard-stats-grid">
+              <div className="dashboard-kpi-card">
+                <div className="kpi-info">
+                  <small>Jami tushum</small>
+                  <div className="kpi-value">{fmt(dash.todayRevenue)}</div>
+                  <div className="kpi-trend up">▲ +18.5% <span style={{color: 'var(--muted)'}}>kechagidan</span></div>
+                </div>
+                <div className="kpi-icon-box revenue">💵</div>
+              </div>
+
+              <div className="dashboard-kpi-card">
+                <div className="kpi-info">
+                  <small>Buyurtmalar soni</small>
+                  <div className="kpi-value">{dash.todayOrdersCount} ta</div>
+                  <div className="kpi-trend up">▲ +12.3% <span style={{color: 'var(--muted)'}}>kechagidan</span></div>
+                </div>
+                <div className="kpi-icon-box orders">📈</div>
+              </div>
+
+              <div className="dashboard-kpi-card">
+                <div className="kpi-info">
+                  <small>O'rtacha chek</small>
+                  <div className="kpi-value">{fmt(dash.todayAverageTicket)}</div>
+                  <div className="kpi-trend up">▲ +6.8% <span style={{color: 'var(--muted)'}}>kechagidan</span></div>
+                </div>
+                <div className="kpi-icon-box average">🧾</div>
+              </div>
+
+              <div className="dashboard-kpi-card">
+                <div className="kpi-info">
+                  <small>Yangi mijozlar</small>
+                  <div className="kpi-value">{dash.newClientsCount} ta</div>
+                  <div className="kpi-trend up">▲ +16.7% <span style={{color: 'var(--muted)'}}>kechagidan</span></div>
+                </div>
+                <div className="kpi-icon-box clients">👥</div>
+              </div>
             </div>
-          </div>
 
-          <div className="customer-row">
-            <label>Mijoz (Bonus: 5-xarid bepul)</label>
-            <div className="customer-selector-container">
-              {!selectedCustomer ? (
-                <>
-                  <input 
-                    type="text" 
-                    placeholder="Qidirish: ism yoki tel..." 
-                    value={searchCustomerVal}
-                    onChange={handleCustomerSearchChange}
-                    autoComplete="off"
-                  />
-                  {showCustomerDropdown && (
-                    <div className="customer-dropdown" style={{ display: 'block' }}>
-                      {filteredCustomerAutocomplete.map(c => (
-                        <div 
-                          key={c.id}
-                          className="customer-dropdown-item"
-                          onClick={() => selectCustomer(c)}
-                        >
-                          {c.name} ({c.phone}) [Xarid: {c.purchase_count}]
+            {/* Middle Section: Chart, Popular Products, Recent Orders */}
+            <div className="dashboard-main-grid">
+              {/* Sales Line Chart Card */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>Savdo tahlili (Kunlik)</h3>
+                  <select defaultValue="today"><option value="today">Bugun</option></select>
+                </div>
+                <div className="sales-total-value">{fmt(dash.todayRevenue)}</div>
+                
+                <div className="sales-chart-wrapper">
+                  <svg viewBox="0 0 300 120" style={{ width: '100%', height: '100%' }}>
+                    <defs>
+                      <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="1" />
+                        <stop offset="100%" stopColor="var(--accent)" stopOpacity="1" />
+                      </linearGradient>
+                      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.25" />
+                        <stop offset="100%" stopColor="var(--primary)" stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    <line x1="10" y1="20" x2="290" y2="20" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                    <line x1="10" y1="50" x2="290" y2="50" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                    <line x1="10" y1="80" x2="290" y2="80" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                    <line x1="10" y1="110" x2="290" y2="110" stroke="rgba(255,255,255,0.07)" strokeWidth="1" />
+                    
+                    {dash.areaD && <path d={dash.areaD} fill="url(#areaGrad)" />}
+                    {dash.pathD && <path d={dash.pathD} fill="none" stroke="url(#lineGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />}
+                    {dash.svgPoints.map((p, i) => (
+                      <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="var(--primary)" stroke="#050302" strokeWidth="2" title={fmt(p.val)} />
+                    ))}
+                  </svg>
+                </div>
+
+                {/* Payment legend breakdown */}
+                <div className="payment-legend-row">
+                  <div className="legend-item">
+                    <small><span className="legend-dot cash"></span> Naqd pul</small>
+                    <b>{fmt(dash.cashRevenue)}</b>
+                    <span style={{ color: 'var(--green)' }}>{dash.cashPct}%</span>
+                  </div>
+                  <div className="legend-item">
+                    <small><span className="legend-dot card"></span> Plastik karta</small>
+                    <b>{fmt(dash.cardRevenue)}</b>
+                    <span style={{ color: '#00c2ff' }}>{dash.cardPct}%</span>
+                  </div>
+                  <div className="legend-item">
+                    <small><span className="legend-dot online"></span> Onlayn to'lov</small>
+                    <b>{fmt(dash.onlineRevenue)}</b>
+                    <span style={{ color: '#bf5af2' }}>{dash.onlinePct}%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Popular Products Top 5 */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>Ommabop mahsulotlar</h3>
+                  <select defaultValue="today"><option value="today">Bugun</option></select>
+                </div>
+                
+                <div className="popular-products-list">
+                  {dash.popularProductsToShow.map((p, idx) => {
+                    const originalProduct = products.find(x => x.id === p.id);
+                    return (
+                      <div className="popular-item-row" key={p.id}>
+                        <span className="popular-rank">{idx + 1}</span>
+                        {originalProduct?.image_url ? (
+                          <img src={originalProduct.image_url} alt="" className="popular-img" />
+                        ) : (
+                          <div className="popular-no-img">🍔</div>
+                        )}
+                        <div className="popular-details">
+                          <span className="popular-name">{p.name}</span>
+                          <span className="popular-qty">{p.qty} dona sotildi</span>
                         </div>
-                      ))}
-                      {filteredCustomerAutocomplete.length === 0 && (
-                        <div className="customer-dropdown-item" style={{ color: 'var(--muted)', cursor: 'default' }}>
-                          Mijoz topilmadi
+                        <div className="popular-revenue">{fmt(p.revenue)}</div>
+                      </div>
+                    );
+                  })}
+                  {dash.popularProductsToShow.length === 0 && (
+                    <div style={{ color: "var(--muted)", textAlign: "center", padding: "2rem" }}>Sotuvlar mavjud emas</div>
+                  )}
+                </div>
+                
+                <span className="view-all-link" onClick={() => setAdminTab("menu")}>Barcha mahsulotlar ›</span>
+              </div>
+
+              {/* Recent Orders Card */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>Oxirgi buyurtmalar</h3>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }} onClick={() => setAdminTab("orders")}>Hammasi</span>
+                </div>
+                
+                <div className="recent-orders-list">
+                  {orders.slice(0, 5).map(o => (
+                    <div className="recent-order-row" key={o.id}>
+                      <div className="ro-meta">
+                        <span className="ro-id">#{o.order_number.slice(-8)}</span>
+                        <span className="ro-time">{new Date(o.created_at).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      <span className={`ro-badge ${o.type}`}>{TYPE_LABEL[o.type] || o.type}</span>
+                      <span className="ro-sum">{fmt(o.total)}</span>
+                    </div>
+                  ))}
+                  {orders.length === 0 && (
+                    <div style={{ color: "var(--muted)", textAlign: "center", padding: "2rem" }}>Buyurtmalar yo'q</div>
+                  )}
+                </div>
+                
+                <span className="view-all-link" onClick={() => setAdminTab("orders")}>Barcha buyurtmalar ›</span>
+              </div>
+            </div>
+
+            {/* Footer Section: Hourly bar chart, Payment donut chart, Notifications */}
+            <div className="dashboard-footer-grid">
+              
+              {/* Sales By Hour Column Chart */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>Soatbay savdo grafigi</h3>
+                  <select defaultValue="today"><option value="today">Bugun</option></select>
+                </div>
+                
+                <div className="hourly-bar-chart">
+                  {dash.hoursArray.map((h, i) => {
+                    const val = dash.salesByHour[i];
+                    const heightPct = dash.maxHourVal > 0 ? (val / dash.maxHourVal) * 100 : 0;
+                    return (
+                      <div className="bar-chart-column" key={h}>
+                        <div 
+                          className="bar-chart-rect" 
+                          style={{ height: `${Math.max(4, heightPct)}%` }}
+                          title={`${h}:00 - ${fmt(val)}`}
+                        />
+                        <span className="bar-chart-label">{h}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Payment Methods Donut Chart */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>To'lov turlari</h3>
+                </div>
+                
+                <div className="donut-chart-box">
+                  <svg width="100" height="100" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="40" fill="transparent" stroke="rgba(255,255,255,0.03)" strokeWidth="8" />
+                    
+                    {dash.cashPct > 0 && (
+                      <circle 
+                        cx="50" cy="50" r="40" 
+                        fill="transparent" 
+                        stroke="var(--green)" 
+                        strokeWidth="8" 
+                        strokeDasharray={`${dash.cashDash} ${dash.circ - dash.cashDash}`} 
+                        strokeDashoffset={dash.cashOffset} 
+                        transform="rotate(-90 50 50)"
+                      />
+                    )}
+                    {dash.cardPct > 0 && (
+                      <circle 
+                        cx="50" cy="50" r="40" 
+                        fill="transparent" 
+                        stroke="#00c2ff" 
+                        strokeWidth="8" 
+                        strokeDasharray={`${dash.cardDash} ${dash.circ - dash.cardDash}`} 
+                        strokeDashoffset={dash.cardOffset} 
+                        transform="rotate(-90 50 50)"
+                      />
+                    )}
+                    {dash.onlinePct > 0 && (
+                      <circle 
+                        cx="50" cy="50" r="40" 
+                        fill="transparent" 
+                        stroke="#bf5af2" 
+                        strokeWidth="8" 
+                        strokeDasharray={`${dash.onlineDash} ${dash.circ - dash.onlineDash}`} 
+                        strokeDashoffset={dash.onlineOffset} 
+                        transform="rotate(-90 50 50)"
+                      />
+                    )}
+                  </svg>
+                  <div className="donut-center-text">
+                    <small>Jami</small>
+                    <b>{fmt(dash.todayRevenue)}</b>
+                  </div>
+                </div>
+              </div>
+
+              {/* Notifications / Alerts list */}
+              <div className="dashboard-card">
+                <div className="dashboard-card-header">
+                  <h3>Tizim bildirishnomalari</h3>
+                </div>
+                
+                <div className="dashboard-notifications-list">
+                  {dash.notificationsList.map(n => (
+                    <div className={`notification-row ${n.type}`} key={n.id}>
+                      <span className="notification-icon">{n.icon}</span>
+                      <div className="notification-text-area">
+                        <span className="notification-text">{n.text}</span>
+                        <span className="notification-time">{n.time}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        );
+
+      case "orders":
+        return (
+          <div className="admin-fullscreen-tab-container">
+            <div className="admin-tab-header">
+              <h2>🛍 Buyurtmalar tarixi</h2>
+            </div>
+            
+            <div className="table-container">
+              <table className="w-table">
+                <thead>
+                  <tr>
+                    <th>№ Buyurtma</th>
+                    <th>Vaqti</th>
+                    <th>Turi</th>
+                    <th>Stol №</th>
+                    <th>Kassir</th>
+                    <th>To'lov</th>
+                    <th>Jami summa</th>
+                    <th>Harakat</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(o => {
+                    const isExpanded = expandedOrderId === o.id;
+                    const itemsOfOrder = orderItems.filter(item => item.order_id === o.id);
+                    
+                    return (
+                      <React.Fragment key={o.id}>
+                        <tr onClick={() => setExpandedOrderId(isExpanded ? null : o.id)} style={{ cursor: 'pointer' }}>
+                          <td><b>#{o.order_number}</b></td>
+                          <td>{new Date(o.created_at).toLocaleString('uz-UZ')}</td>
+                          <td><span className={`ro-badge ${o.type}`}>{TYPE_LABEL[o.type] || o.type}</span></td>
+                          <td>{o.table_number || "—"}</td>
+                          <td>{o.cashier}</td>
+                          <td>{o.payment_method === 'naqd' ? '💵 Naqd' : '💳 Karta'}</td>
+                          <td><b>{fmt(o.total)}</b></td>
+                          <td><button className="btn-inline-edit">{isExpanded ? "▲ Yopish" : "▼ Batafsil"}</button></td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan="8" style={{ background: 'rgba(255,255,255,0.01)', padding: '1.5rem' }}>
+                              <h4 style={{ marginBottom: '1rem', color: 'var(--primary)' }}>Savat tarkibi:</h4>
+                              <table className="w-table" style={{ width: '100%', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                <thead>
+                                  <tr>
+                                    <th>Mahsulot</th>
+                                    <th>Narxi</th>
+                                    <th>Soni</th>
+                                    <th>Jami</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {itemsOfOrder.map((it, idx) => (
+                                    <tr key={idx}>
+                                      <td><b>{it.name}</b></td>
+                                      <td>{fmt(it.price)}</td>
+                                      <td>{it.qty} dona</td>
+                                      <td><b>{fmt(it.subtotal)}</b></td>
+                                    </tr>
+                                  ))}
+                                  {itemsOfOrder.length === 0 && (
+                                    <tr>
+                                      <td colSpan="4" style={{ textAlign: 'center', color: 'var(--muted)' }}>Tarkib yuklanmadi.</td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                  {orders.length === 0 && (
+                    <tr>
+                      <td colSpan="8" style={{ textAlign: "center", color: "var(--muted)", padding: "2rem" }}>
+                        Hali buyurtmalar amalga oshirilmagan
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+
+      case "menu":
+        return (
+          <div className="admin-fullscreen-tab-container">
+            <div className="admin-tab-header">
+              <h2>⚙️ Menyu va Mahsulotlar boshqaruvi</h2>
+              <div className="warehouse-tabs" style={{ margin: 0 }}>
+                <button 
+                  className={`w-tab ${activeMenuEditTab === 'products' ? 'active' : ''}`}
+                  onClick={() => { setActiveMenuEditTab('products'); resetProductForm(); }}
+                >
+                  Mahsulotlar
+                </button>
+                <button 
+                  className={`w-tab ${activeMenuEditTab === 'categories' ? 'active' : ''}`}
+                  onClick={() => setActiveMenuEditTab('categories')}
+                >
+                  Kategoriyalar
+                </button>
+              </div>
+            </div>
+
+            {activeMenuEditTab === 'products' ? (
+              <div className="w-content active" style={{ display: 'block' }}>
+                <div className="add-product-form">
+                  <h4 id="product-form-title">{editProdId ? "Mahsulotni tahrirlash" : "Yangi mahsulot qo'shish"}</h4>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Kategoriya</label>
+                      <select value={newProdCat} onChange={e => setNewProdCat(e.target.value)}>
+                        {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Nomi</label>
+                      <input type="text" placeholder="Masalan: Hamburger Special" value={newProdName} onChange={e => setNewProdName(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Narxi (so'm)</label>
+                      <input type="number" placeholder="Narxi" value={newProdPrice} onChange={e => setNewProdPrice(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Tavsifi</label>
+                      <input type="text" placeholder="Tarkibi va ta'rifi" value={newProdDesc} onChange={e => setNewProdDesc(e.target.value)} />
+                    </div>
+                    <div className="form-group">
+                      <label>Tartib raqami</label>
+                      <input type="number" placeholder="Tartib (masalan: 1, 2...)" value={newProdSort} onChange={e => setNewProdSort(e.target.value)} />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: "span 2" }}>
+                      <label>Mahsulot rasmi</label>
+                      <div className="image-upload-wrapper">
+                        <input 
+                          type="text" 
+                          placeholder="Rasm URL havolasi (ixtiyoriy)" 
+                          value={newProdImgUrl}
+                          onChange={e => { setNewProdImgUrl(e.target.value); setCurrentBase64Image(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                        />
+                        <span style={{ color: "var(--muted)", fontSize: "0.8rem", textAlign: "center" }}>yoki</span>
+                        <input type="file" ref={fileInputRef} accept="image/*" className="file-input-btn" onChange={handleFileChange} />
+                      </div>
+                      {(currentBase64Image || newProdImgUrl) && (
+                        <div className="img-preview-box" style={{ display: "block" }}>
+                          <img src={currentBase64Image || newProdImgUrl} alt="" />
+                          <button type="button" onClick={() => { setCurrentBase64Image(""); setNewProdImgUrl(""); if (fileInputRef.current) fileInputRef.current.value = ""; }}>✕</button>
                         </div>
                       )}
                     </div>
-                  )}
-                </>
-              ) : (
-                <div className="selected-customer-badge" style={{ display: 'flex' }}>
-                  <span>{selectedCustomer.name} ({selectedCustomer.phone}) [Xaridlar: {selectedCustomer.purchase_count}]</span>
-                  <button onClick={removeCustomer} type="button">✕</button>
+                  </div>
+                  <div className="form-actions-row">
+                    <button className="btn-confirm" onClick={handleSaveProduct}>Saqlash</button>
+                    {editProdId && <button className="btn-secondary" onClick={resetProductForm}>Bekor qilish</button>}
+                  </div>
                 </div>
-              )}
-            </div>
-            {totals.isBonusOrder && cart.length > 0 && (
-              <div className="loyalty-bonus-alert" style={{ display: 'block' }}>
-                🎁 <b>Bonus Xarid!</b> Eng arzon mahsulot tekin bo'ladi.
+
+                <div className="table-container">
+                  <table className="w-table">
+                    <thead>
+                      <tr>
+                        <th>Rasm</th>
+                        <th>Mahsulot nomi</th>
+                        <th>Kategoriya</th>
+                        <th>Narxi</th>
+                        <th>Harakat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {products.map(p => {
+                        const cat = categories.find(c => c.id === p.category_id);
+                        return (
+                          <tr key={p.id}>
+                            <td>{p.image_url ? <img src={p.image_url} className="img-in-table" alt="" /> : <div style={{ textAlign: "center", fontSize: "1.2rem" }}>🍔</div>}</td>
+                            <td><b>{p.name}</b></td>
+                            <td>{cat ? cat.name : "—"}</td>
+                            <td>{fmt(p.price)}</td>
+                            <td>
+                              <button className="btn-inline-edit" onClick={() => editProduct(p)}>✏️</button>
+                              <button className="btn-inline-del" onClick={() => deleteProduct(p.id, p.name)}>❌</button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="w-content active" style={{ display: 'block' }}>
+                <div className="add-category-form">
+                  <h4>Yangi kategoriya qo'shish</h4>
+                  <div className="form-row">
+                    <input type="text" placeholder="Kategoriya nomi" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
+                    <input type="text" placeholder="Emoji (masalan: 🍕)" value={newCatIcon} onChange={e => setNewCatIcon(e.target.value)} />
+                    <input type="number" placeholder="Tartib raqami" value={newCatSort} onChange={e => setNewCatSort(e.target.value)} />
+                    <button className="btn-confirm" onClick={handleAddCategory}>Qo'shish</button>
+                  </div>
+                </div>
+                <div className="table-container">
+                  <table className="w-table">
+                    <thead>
+                      <tr>
+                        <th>Emoji</th>
+                        <th>Kategoriya nomi</th>
+                        <th>Tartibi</th>
+                        <th>Harakat</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {categories.map(c => (
+                        <tr key={c.id}>
+                          <td style={{ fontSize: "1.3rem", textAlign: "center" }}>{c.icon || ''}</td>
+                          <td><b>{c.name}</b></td>
+                          <td>{c.sort_order}</td>
+                          <td>
+                            <button className="btn-inline-del" onClick={() => deleteCategory(c.id, c.name)}>❌</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
+        );
 
-          <div className="cart-items">
-            {cart.map((item, idx) => (
-              <div className="cart-item" key={idx}>
-                <div className="ci-name">{item.name}<small>{fmt(item.price)}</small></div>
-                <div className="ci-qty">
-                  <button onClick={() => changeQty(item.product_id, -1)}>−</button>
-                  <span>{item.qty}</span>
-                  <button onClick={() => changeQty(item.product_id, 1)}>+</button>
-                </div>
-                <div className="ci-sum">{fmt(item.price * item.qty)}</div>
+      case "warehouse":
+        return (
+          <div className="admin-fullscreen-tab-container">
+            <div className="admin-tab-header">
+              <h2>📦 Ombor va Masalliqlar boshqaruvi</h2>
+              <div className="warehouse-tabs" style={{ margin: 0 }}>
+                <button className={`w-tab ${activeWarehouseTab === 'stock' ? 'active' : ''}`} onClick={() => setActiveWarehouseTab('stock')}>Masalliqlar Qoldig'i</button>
+                <button className={`w-tab ${activeWarehouseTab === 'recipes' ? 'active' : ''}`} onClick={() => setActiveWarehouseTab('recipes')}>Retseptlar</button>
               </div>
-            ))}
-            {cart.length === 0 && (
-              <div className="cart-empty">Savat bo'sh — taom tanlang</div>
-            )}
-          </div>
-
-          <div className="cart-summary">
-            <div className="sum-row"><span>Oraliq</span><b>{fmt(totals.subtotal)}</b></div>
-            <div className="sum-row">
-              <span>Xizmat haqi
-                <input 
-                  type="number" 
-                  value={servicePct} 
-                  onChange={e => setServicePct(e.target.value)}
-                  min="0" 
-                  max="100" 
-                  className="pct-input" 
-                /> %
-              </span>
-              <b>{fmt(totals.service)}</b>
-            </div>
-            <div className="sum-row">
-              <span>Chegirma 
-                <input 
-                  type="number" 
-                  value={discountInput}
-                  onChange={e => setDiscountInput(e.target.value)}
-                  min="0" 
-                  className="disc-input" 
-                /> so'm
-              </span>
-              <b>
-                {totals.bonusDiscount > 0 ? (
-                  `${fmt(totals.discount - totals.bonusDiscount)} + ${fmt(totals.bonusDiscount)} (Bonus)`
-                ) : (
-                  fmt(totals.discount)
-                )}
-              </b>
-            </div>
-            <div className="sum-row total"><span>JAMI</span><b>{fmt(totals.total)}</b></div>
-          </div>
-
-          <div className="cart-actions">
-            <button className="btn-clear" onClick={clearCart}>Tozalash</button>
-            <button 
-              className="btn-confirm" 
-              onClick={handleConfirmOrder} 
-              disabled={cart.length === 0}
-            >
-              ✔ Tasdiqlash
-            </button>
-          </div>
-        </aside>
-      </main>
-
-      {/* ================= MODALS ================= */}
-
-      {/* 1. Warehouse Modal */}
-      {showWarehouseModal && (
-        <div className="modal open" id="warehouse-modal">
-          <div className="modal-card warehouse-card">
-            <div className="modal-head">
-              <h2>📦 Ombor va Masalliqlar</h2>
-              <button className="modal-x" onClick={() => setShowWarehouseModal(false)}>✕</button>
-            </div>
-            
-            <div className="warehouse-tabs">
-              <button 
-                className={`w-tab ${activeWarehouseTab === 'stock' ? 'active' : ''}`}
-                onClick={() => setActiveWarehouseTab('stock')}
-              >
-                Masalliqlar Qoldig'i
-              </button>
-              <button 
-                className={`w-tab ${activeWarehouseTab === 'recipes' ? 'active' : ''}`}
-                onClick={() => setActiveWarehouseTab('recipes')}
-              >
-                Retseptlar
-              </button>
             </div>
 
-            {/* Tab: Stock */}
-            {activeWarehouseTab === 'stock' && (
-              <div className="w-content active" id="w-content-stock">
+            {activeWarehouseTab === 'stock' ? (
+              <div className="w-content active" style={{ display: 'block' }}>
                 <div className="add-ingredient-form">
                   <h4>Yangi masalliq qo'shish</h4>
                   <div className="form-row">
-                    <input 
-                      type="text" 
-                      placeholder="Masalliq nomi" 
-                      value={newIngName}
-                      onChange={e => setNewIngName(e.target.value)}
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Qoldiq" 
-                      step="any"
-                      value={newIngStock}
-                      onChange={e => setNewIngStock(e.target.value)}
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Birlik" 
-                      value={newIngUnit}
-                      onChange={e => setNewIngUnit(e.target.value)}
-                    />
+                    <input type="text" placeholder="Masalliq nomi" value={newIngName} onChange={e => setNewIngName(e.target.value)} />
+                    <input type="number" placeholder="Qoldiq" step="any" value={newIngStock} onChange={e => setNewIngStock(e.target.value)} />
+                    <input type="text" placeholder="Birlik" value={newIngUnit} onChange={e => setNewIngUnit(e.target.value)} />
                     <button className="btn-confirm" onClick={handleAddIngredient}>Qo'shish</button>
                   </div>
                 </div>
-                
                 <div className="table-container">
                   <table className="w-table">
                     <thead>
@@ -1523,54 +1883,25 @@ export default function App() {
                             <td><span className={`badge ${badgeClass}`}>{ing.stock}</span></td>
                             <td>{ing.unit}</td>
                             <td>
-                              <button 
-                                className="btn-inline-edit" 
-                                onClick={() => editIngStock(ing.id, ing.stock, ing.name, ing.unit)}
-                                title="Miqdorni tahrirlash"
-                              >
-                                ✏️
-                              </button>
-                              <button 
-                                className="btn-inline-del" 
-                                onClick={() => deleteIngredient(ing.id, ing.name)}
-                                title="O'chirish"
-                              >
-                                ❌
-                              </button>
+                              <button className="btn-inline-edit" onClick={() => editIngStock(ing.id, ing.stock, ing.name, ing.unit)}>✏️</button>
+                              <button className="btn-inline-del" onClick={() => deleteIngredient(ing.id, ing.name)}>❌</button>
                             </td>
                           </tr>
                         );
                       })}
-                      {inventory.length === 0 && (
-                        <tr>
-                          <td colSpan="4" style={{ textAlign: "center", color: "var(--muted)", padding: "1rem" }}>
-                            Omborda masalliqlar yo'q
-                          </td>
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-            )}
-
-            {/* Tab: Recipes */}
-            {activeWarehouseTab === 'recipes' && (
-              <div className="w-content active" id="w-content-recipes">
+            ) : (
+              <div className="w-content active" style={{ display: 'block' }}>
                 <div className="recipe-editor-container">
-                  
                   <div className="recipe-select-product">
                     <label>Mahsulotni tanlang:</label>
-                    <select 
-                      value={recipeProductSelect}
-                      onChange={e => setRecipeProductSelect(e.target.value)}
-                    >
-                      {products.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
+                    <select value={recipeProductSelect} onChange={e => setRecipeProductSelect(e.target.value)}>
+                      {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
-                  
                   <div className="recipe-ingredients-list">
                     <h4>Mahsulot tarkibi:</h4>
                     <div className="table-container">
@@ -1591,88 +1922,48 @@ export default function App() {
                                 <td><b>{ing ? ing.name : "Noma'lum"}</b></td>
                                 <td>{r.quantity}</td>
                                 <td>{ing ? ing.unit : ""}</td>
-                                <td>
-                                  <button className="btn-inline-del" onClick={() => deleteRecipeItem(r.id)}>❌</button>
-                                </td>
+                                <td><button className="btn-inline-del" onClick={() => deleteRecipeItem(r.id)}>❌</button></td>
                               </tr>
                             );
                           })}
-                          {recipes.filter(r => r.product_id === Number(recipeProductSelect)).length === 0 && (
-                            <tr>
-                              <td colSpan="4" style={{ textAlign: "center", color: "var(--muted)", padding: "1rem" }}>
-                                Ushbu taom uchun tarkib kiritilmagan
-                              </td>
-                            </tr>
-                          )}
                         </tbody>
                       </table>
                     </div>
                   </div>
-
                   <div className="add-recipe-item-form">
                     <h5>Masalliq qo'shish yoki miqdorini o'zgartirish</h5>
                     <div className="form-row">
-                      <select 
-                        value={recipeIngSelect}
-                        onChange={e => setRecipeIngSelect(e.target.value)}
-                      >
-                        {inventory.map(i => (
-                          <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>
-                        ))}
+                      <select value={recipeIngSelect} onChange={e => setRecipeIngSelect(e.target.value)}>
+                        {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
                       </select>
-                      <input 
-                        type="number" 
-                        placeholder="Miqdori" 
-                        step="any"
-                        value={recipeIngQty}
-                        onChange={e => setRecipeIngQty(e.target.value)}
-                      />
+                      <input type="number" placeholder="Miqdori" step="any" value={recipeIngQty} onChange={e => setRecipeIngQty(e.target.value)} />
                       <button className="btn-confirm" onClick={handleSaveRecipeItem}>Saqlash</button>
                     </div>
                   </div>
-
                 </div>
               </div>
             )}
           </div>
-        </div>
-      )}
+        );
 
-      {/* 2. Customers Modal */}
-      {showCustomersModal && (
-        <div className="modal open" id="customers-modal">
-          <div className="modal-card customer-card-modal">
-            <div className="modal-head">
+      case "customers":
+        return (
+          <div className="admin-fullscreen-tab-container">
+            <div className="admin-tab-header">
               <h2>👥 Mijozlar Bazasi</h2>
-              <button className="modal-x" onClick={() => setShowCustomersModal(false)}>✕</button>
             </div>
             
             <div className="add-customer-form">
               <h4>Yangi mijoz qo'shish</h4>
               <div className="form-row">
-                <input 
-                  type="text" 
-                  placeholder="F.I.O." 
-                  value={newCustName}
-                  onChange={e => setNewCustName(e.target.value)}
-                />
-                <input 
-                  type="text" 
-                  placeholder="Telefon (masalan: +998901234567)" 
-                  value={newCustPhone}
-                  onChange={e => setNewCustPhone(e.target.value)}
-                />
+                <input type="text" placeholder="F.I.O." value={newCustName} onChange={e => setNewCustName(e.target.value)} />
+                <input type="text" placeholder="Telefon (masalan: +998901234567)" value={newCustPhone} onChange={e => setNewCustPhone(e.target.value)} />
                 <button className="btn-confirm" onClick={handleAddCustomer}>Qo'shish</button>
               </div>
             </div>
 
             <div className="search-cust-row">
-              <input 
-                type="text" 
-                placeholder="Mijozni qidirish (ism yoki tel)..." 
-                value={searchCustInput}
-                onChange={e => setSearchCustInput(e.target.value)}
-              />
+              <input type="text" placeholder="Mijozni qidirish (ism yoki tel)..." value={searchCustInput} onChange={e => setSearchCustInput(e.target.value)} />
             </div>
 
             <div className="table-container">
@@ -1692,291 +1983,25 @@ export default function App() {
                       <td>{c.phone}</td>
                       <td><span className="badge badge-success">{c.purchase_count} ta xarid</span></td>
                       <td>
-                        <button 
-                          className="btn-inline-edit" 
-                          onClick={() => selectCustForOrder(c)} 
-                          style={{ color: "var(--green)" }}
-                        >
-                          ✅ Tanlash
-                        </button>
-                        <button className="btn-inline-del" onClick={() => deleteCustomer(c.id)}>❌</button>
+                        <button className="btn-inline-del" onClick={() => deleteCustomer(c.id)}>❌ O'chirish</button>
                       </td>
                     </tr>
                   ))}
-                  {filteredCustomersList.length === 0 && (
-                    <tr>
-                      <td colSpan="4" style={{ textAlign: "center", color: "var(--muted)", padding: "1rem" }}>
-                        Mijozlar topilmadi
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
           </div>
-        </div>
-      )}
+        );
 
-      {/* 3. Menu Management Modal */}
-      {showMenuEditModal && (
-        <div className="modal open" id="menu-edit-modal">
-          <div className="modal-card menu-edit-card">
-            <div className="modal-head">
-              <h2>⚙️ Menyu Boshqaruvi</h2>
-              <button className="modal-x" onClick={() => { setShowMenuEditModal(false); resetProductForm(); }}>✕</button>
+      case "reports":
+        return (
+          <div className="admin-fullscreen-tab-container">
+            <div className="admin-tab-header">
+              <h2>📊 Batafsil kunlik hisobotlar</h2>
             </div>
-
-            <div className="warehouse-tabs">
-              <button 
-                className={`w-tab ${activeMenuEditTab === 'products' ? 'active' : ''}`}
-                onClick={() => { setActiveMenuEditTab('products'); resetProductForm(); }}
-              >
-                Mahsulotlar
-              </button>
-              <button 
-                className={`w-tab ${activeMenuEditTab === 'categories' ? 'active' : ''}`}
-                onClick={() => setActiveMenuEditTab('categories')}
-              >
-                Kategoriyalar
-              </button>
-            </div>
-
-            {/* Tab: Products */}
-            {activeMenuEditTab === 'products' && (
-              <div className="w-content active" id="me-content-products">
-                <div className="add-product-form">
-                  <h4 id="product-form-title">{editProdId ? "Mahsulotni tahrirlash" : "Yangi mahsulot qo'shish"}</h4>
-                  <div className="form-grid">
-                    <div className="form-group">
-                      <label>Kategoriya</label>
-                      <select 
-                        value={newProdCat}
-                        onChange={e => setNewProdCat(e.target.value)}
-                      >
-                        {categories.map(c => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Nomi</label>
-                      <input 
-                        type="text" 
-                        placeholder="Masalan: Hamburger Special" 
-                        value={newProdName}
-                        onChange={e => setNewProdName(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Narxi (so'm)</label>
-                      <input 
-                        type="number" 
-                        placeholder="Narxi" 
-                        value={newProdPrice}
-                        onChange={e => setNewProdPrice(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Tavsifi</label>
-                      <input 
-                        type="text" 
-                        placeholder="Tarkibi va ta'rifi" 
-                        value={newProdDesc}
-                        onChange={e => setNewProdDesc(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label>Tartib raqami</label>
-                      <input 
-                        type="number" 
-                        placeholder="Tartib (masalan: 1, 2...)" 
-                        value={newProdSort}
-                        onChange={e => setNewProdSort(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="form-group" style={{ gridColumn: "span 2" }}>
-                      <label>Mahsulot rasmi</label>
-                      <div className="image-upload-wrapper">
-                        <input 
-                          type="text" 
-                          placeholder="Rasm URL havolasi (ixtiyoriy)" 
-                          value={newProdImgUrl}
-                          onChange={e => {
-                            setNewProdImgUrl(e.target.value);
-                            setCurrentBase64Image("");
-                            if (fileInputRef.current) fileInputRef.current.value = "";
-                          }}
-                        />
-                        <span style={{ color: "var(--muted)", fontSize: "0.8rem", textAlign: "center" }}>yoki</span>
-                        <input 
-                          type="file" 
-                          ref={fileInputRef}
-                          accept="image/*" 
-                          className="file-input-btn" 
-                          onChange={handleFileChange}
-                        />
-                      </div>
-                      
-                      {/* Base64 preview (tuzatish) */}
-                      {(currentBase64Image || newProdImgUrl) && (
-                        <div className="img-preview-box" style={{ display: "block" }}>
-                          <img src={currentBase64Image || newProdImgUrl} alt="Preview" />
-                          <button 
-                            type="button" 
-                            onClick={() => {
-                              setCurrentBase64Image("");
-                              setNewProdImgUrl("");
-                              if (fileInputRef.current) fileInputRef.current.value = "";
-                            }}
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="form-actions-row">
-                    <button className="btn-confirm" onClick={handleSaveProduct}>Saqlash</button>
-                    {editProdId && (
-                      <button className="btn-secondary" onClick={resetProductForm}>Bekor qilish</button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="table-container">
-                  <table className="w-table">
-                    <thead>
-                      <tr>
-                        <th>Rasm</th>
-                        <th>Mahsulot nomi</th>
-                        <th>Kategoriya</th>
-                        <th>Narxi</th>
-                        <th>Harakat</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map(p => {
-                        const cat = categories.find(c => c.id === p.category_id);
-                        return (
-                          <tr key={p.id}>
-                            <td>
-                              {p.image_url ? (
-                                <img src={p.image_url} className="img-in-table" alt="" />
-                              ) : (
-                                <div style={{ textAlign: "center", fontSize: "1.2rem" }}>🍔</div>
-                              )}
-                            </td>
-                            <td><b>{p.name}</b></td>
-                            <td>{cat ? cat.name : "—"}</td>
-                            <td>{fmt(p.price)}</td>
-                            <td>
-                              <button className="btn-inline-edit" onClick={() => editProduct(p)}>✏️</button>
-                              <button className="btn-inline-del" onClick={() => deleteProduct(p.id, p.name)}>❌</button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {products.length === 0 && (
-                        <tr>
-                          <td colSpan="5" style={{ textAlign: "center", color: "var(--muted)", padding: "1rem" }}>
-                            Mahsulotlar yo'q
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Tab: Categories */}
-            {activeMenuEditTab === 'categories' && (
-              <div className="w-content active" id="me-content-categories">
-                <div className="add-category-form">
-                  <h4>Yangi kategoriya qo'shish</h4>
-                  <div className="form-row">
-                    <input 
-                      type="text" 
-                      placeholder="Kategoriya nomi" 
-                      value={newCatName}
-                      onChange={e => setNewCatName(e.target.value)}
-                    />
-                    <input 
-                      type="text" 
-                      placeholder="Emoji (masalan: 🍕)" 
-                      value={newCatIcon}
-                      onChange={e => setNewCatIcon(e.target.value)}
-                    />
-                    <input 
-                      type="number" 
-                      placeholder="Tartib raqami" 
-                      value={newCatSort}
-                      onChange={e => setNewCatSort(e.target.value)}
-                    />
-                    <button className="btn-confirm" onClick={handleAddCategory}>Qo'shish</button>
-                  </div>
-                </div>
-
-                <div className="table-container">
-                  <table className="w-table">
-                    <thead>
-                      <tr>
-                        <th>Emoji</th>
-                        <th>Kategoriya nomi</th>
-                        <th>Tartibi</th>
-                        <th>Harakat</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {categories.map(c => (
-                        <tr key={c.id}>
-                          <td style={{ fontSize: "1.3rem", textAlign: "center" }}>{c.icon || ''}</td>
-                          <td><b>{c.name}</b></td>
-                          <td>{c.sort_order}</td>
-                          <td>
-                            <button className="btn-inline-del" onClick={() => deleteCategory(c.id, c.name)}>❌</button>
-                          </td>
-                        </tr>
-                      ))}
-                      {categories.length === 0 && (
-                        <tr>
-                          <td colSpan="4" style={{ textAlign: "center", color: "var(--muted)", padding: "1rem" }}>
-                            Kategoriyalar yo'q
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 4. Daily Reports Modal */}
-      {showReportsModal && (
-        <div className="modal open" id="reports-modal">
-          <div className="modal-card">
-            <div className="modal-head">
-              <h2>📊 Kunlik Hisobot</h2>
-              <button className="modal-x" onClick={() => setShowReportsModal(false)}>✕</button>
-            </div>
-            <input 
-              type="date" 
-              className="report-date"
-              value={reportDate}
-              onChange={handleReportDateChange}
-            />
-            
+            <input type="date" className="report-date" value={reportDate} onChange={handleReportDateChange} />
             {reportData ? (
-              <div className="report-body" style={{ display: "block" }}>
+              <div className="report-body" style={{ display: "block", marginTop: '2rem' }}>
                 <div className="kpi-grid">
                   <div className="kpi"><small>Buyurtmalar</small><b>{reportData.ordersCount} ta</b></div>
                   <div className="kpi"><small>Tushum</small><b>{fmt(reportData.revenue)}</b></div>
@@ -1984,73 +2009,337 @@ export default function App() {
                   <div className="kpi"><small>Chegirma</small><b>{fmt(reportData.discount)}</b></div>
                 </div>
                 
-                <h4>Buyurtma turlari</h4>
+                <h4 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Buyurtma turlari</h4>
                 {Object.keys(reportData.byType).map(k => (
                   <div className="rrow" key={k}>
                     <span>{TYPE_LABEL[k] || k}</span>
                     <span>{reportData.byType[k].count} ta · {fmt(reportData.byType[k].sum)}</span>
                   </div>
                 ))}
-                {Object.keys(reportData.byType).length === 0 && (
-                  <div className="rrow"><span>—</span></div>
-                )}
-                
-                <h4>Eng ko'p sotilgan mahsulotlar</h4>
+
+                <h4 style={{ marginTop: '2rem', marginBottom: '1rem' }}>Eng ko'p sotilgan mahsulotlar</h4>
                 {reportData.topItems.map((p, idx) => (
                   <div className="rrow" key={idx}>
                     <span>{p.name}</span>
                     <span>{p.qty} dona · {fmt(p.rev)}</span>
                   </div>
                 ))}
-                {reportData.topItems.length === 0 && (
-                  <div className="rrow"><span>Sotuv yo'q</span></div>
-                )}
               </div>
             ) : (
               <div style={{ textAlign: "center", padding: "2rem" }}>Yuklanmoqda...</div>
             )}
           </div>
-        </div>
-      )}
+        );
 
-      {/* 5. Checkout Receipt Modal */}
-      {showReceiptModal && receiptOrder && receiptTotals && (
-        <div className="modal open" id="receipt-modal">
-          <div className="modal-card receipt">
-            <div id="receipt-body">
-              <div className="r-store">
-                <img src="/logo.png" alt="Chempion Burger" style={{ height: "48px", marginBottom: "0.4rem" }} />
-                <small>Chek: #{receiptOrder.order_number}</small>
-              </div>
-              <div className="r-line"><span>Sana</span><span>{new Date(receiptOrder.created_at).toLocaleString('uz-UZ')}</span></div>
-              <div className="r-line"><span>Turi</span><span>{TYPE_LABEL[receiptOrder.type]}</span></div>
-              {receiptOrder.table_number && <div className="r-line"><span>Stol</span><span>№{receiptOrder.table_number}</span></div>}
-              {selectedCustomer && <div className="r-line"><span>Mijoz</span><span>{selectedCustomer.name}</span></div>}
-              <div className="r-line"><span>To'lov usuli</span><span>{PM_LABEL[receiptOrder.payment_method] || receiptOrder.payment_method}</span></div>
-              
-              <div className="r-items">
-                {cart.map((i, idx) => (
-                  <div className="r-line" key={idx}>
-                    <span>{i.name} ×{i.qty}</span>
-                    <b>{fmt(i.price * i.qty)}</b>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="r-line"><span>Oraliq</span><span>{fmt(receiptTotals.subtotal)}</span></div>
-              <div className="r-line"><span>Xizmat haqi</span><span>{fmt(receiptTotals.service)}</span></div>
-              <div className="r-line"><span>Chegirma</span><span>{fmt(receiptTotals.discount)}</span></div>
-              <div className="r-total"><span>JAMI</span><b>{fmt(receiptTotals.total)}</b></div>
-            </div>
-            
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => window.print()}>🖨 Chop etish</button>
-              <button className="btn-confirm" onClick={handleReceiptClose}>Yangi buyurtma</button>
+      default:
+        return <div>Sahifa topilmadi</div>;
+    }
+  };
+
+  // ---------- Cashier Rendering Layout (Existing POS screen) ----------
+  const renderCashierLayout = () => {
+    return (
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+        {/* Topbar Header */}
+        <header className="topbar">
+          <div className="brand">
+            <img src="/logo.png" alt="Chempion Burger Logo" className="brand-logo" />
+            <small>POS</small>
+          </div>
+          
+          <div className="order-types">
+            <button className={`otype ${orderType === 'dine_in' ? 'active' : ''}`} onClick={() => setOrderType('dine_in')}>🍽️ Zal</button>
+            <button className={`otype ${orderType === 'takeout' ? 'active' : ''}`} onClick={() => setOrderType('takeout')}>🥡 Olib ketish</button>
+            <button className={`otype ${orderType === 'delivery' ? 'active' : ''}`} onClick={() => setOrderType('delivery')}>🏍️ Yetkazib berish</button>
+          </div>
+          
+          <div className="topbar-actions">
+            <button className="btn-report" onClick={() => setShowCustomersModal(true)}>👥 Mijozlar</button>
+            <div className="user-badge" style={{ display: 'flex' }}>
+              <span className="user-icon">👤</span>
+              <span className="user-name">{user.label}</span>
+              <button className="btn-logout" onClick={handleLogout} title="Chiqish">🚪</button>
             </div>
           </div>
-        </div>
-      )}
+        </header>
 
-    </div>
-  );
+        {/* Main POS Workspace */}
+        <main className="layout" style={{ flex: 1, display: "flex" }}>
+          {/* Left Side: Product Menu */}
+          <section className="menu-panel" style={{ flex: 1 }}>
+            <div className="menu-panel-header">
+              <div className="cat-tabs">
+                <button className={`cat-tab ${activeCategory === 'all' ? 'active' : ''}`} onClick={() => setActiveCategory('all')}>Hammasi</button>
+                {categories.map(c => (
+                  <button key={c.id} className={`cat-tab ${activeCategory === c.id ? 'active' : ''}`} onClick={() => setActiveCategory(c.id)}>
+                    {c.icon || ''} {c.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="product-grid">
+              {visibleProductsList.map((p, index) => {
+                const descHtml = p.description 
+                  ? p.description.includes(',')
+                    ? p.description.split(',').map((item, idx) => <React.Fragment key={idx}>• {item.trim()}<br/></React.Fragment>)
+                    : p.description
+                  : '';
+                
+                return (
+                  <div className="product-card" key={p.id} onClick={() => addToCart(p.id)}>
+                    {p.image_url && <div className="p-img"><img src={p.image_url} alt="" /></div>}
+                    <div className="p-name">{p.name}</div>
+                    <div className="p-desc">{descHtml}</div>
+                    <div className="p-price">{fmt(p.price)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Right Side: Cart Panel */}
+          <aside className="cart-panel" style={{ width: "380px" }}>
+            <div className="cart-head">
+              <h2>Buyurtma</h2>
+              <span className="cart-type">{TYPE_LABEL[orderType]}</span>
+            </div>
+
+            {orderType === 'dine_in' && (
+              <div className="table-row">
+                <label>Stol №</label>
+                <input type="text" placeholder="masalan: 5" value={tableNumber} onChange={e => setTableNumber(e.target.value)} />
+              </div>
+            )}
+
+            <div className="payment-row">
+              <label>To'lov usuli</label>
+              <div className="payment-methods">
+                <button className={`pm-btn ${paymentMethod === 'naqd' ? 'active' : ''}`} onClick={() => setPaymentMethod('naqd')}>💵 Naqd</button>
+                <button className={`pm-btn ${paymentMethod === 'karta' ? 'active' : ''}`} onClick={() => setPaymentMethod('karta')}>💳 Karta</button>
+              </div>
+            </div>
+
+            <div className="customer-row">
+              <label>Mijoz (Bonus: 5-xarid bepul)</label>
+              <div className="customer-selector-container">
+                {!selectedCustomer ? (
+                  <>
+                    <input type="text" placeholder="Qidirish: ism yoki tel..." value={searchCustomerVal} onChange={handleCustomerSearchChange} autoComplete="off" />
+                    {showCustomerDropdown && (
+                      <div className="customer-dropdown" style={{ display: 'block' }}>
+                        {filteredCustomerAutocomplete.map(c => (
+                          <div key={c.id} className="customer-dropdown-item" onClick={() => selectCustomer(c)}>
+                            {c.name} ({c.phone}) [Xarid: {c.purchase_count}]
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="selected-customer-badge" style={{ display: 'flex' }}>
+                    <span>{selectedCustomer.name} ({selectedCustomer.phone}) [Xaridlar: {selectedCustomer.purchase_count}]</span>
+                    <button onClick={removeCustomer} type="button">✕</button>
+                  </div>
+                )}
+              </div>
+              {totals.isBonusOrder && cart.length > 0 && (
+                <div className="loyalty-bonus-alert" style={{ display: 'block' }}>
+                  🎁 <b>Bonus Xarid!</b> Eng arzon mahsulot tekin bo'ladi.
+                </div>
+              )}
+            </div>
+
+            <div className="cart-items">
+              {cart.map((item, idx) => (
+                <div className="cart-item" key={idx}>
+                  <div className="ci-name">{item.name}<small>{fmt(item.price)}</small></div>
+                  <div className="ci-qty">
+                    <button onClick={() => changeQty(item.product_id, -1)}>−</button>
+                    <span>{item.qty}</span>
+                    <button onClick={() => changeQty(item.product_id, 1)}>+</button>
+                  </div>
+                  <div className="ci-sum">{fmt(item.price * item.qty)}</div>
+                </div>
+              ))}
+              {cart.length === 0 && <div className="cart-empty">Savat bo'sh — taom tanlang</div>}
+            </div>
+
+            <div className="cart-summary">
+              <div className="sum-row"><span>Oraliq</span><b>{fmt(totals.subtotal)}</b></div>
+              <div className="sum-row">
+                <span>Xizmat haqi
+                  <input type="number" value={servicePct} onChange={e => setServicePct(e.target.value)} min="0" max="100" className="pct-input" /> %
+                </span>
+                <b>{fmt(totals.service)}</b>
+              </div>
+              <div className="sum-row">
+                <span>Chegirma <input type="number" value={discountInput} onChange={e => setDiscountInput(e.target.value)} min="0" className="disc-input" /> so'm</span>
+                <b>{totals.bonusDiscount > 0 ? `${fmt(totals.discount - totals.bonusDiscount)} + ${fmt(totals.bonusDiscount)} (Bonus)` : fmt(totals.discount)}</b>
+              </div>
+              <div className="sum-row total"><span>JAMI</span><b>{fmt(totals.total)}</b></div>
+            </div>
+
+            <div className="cart-actions">
+              <button className="btn-clear" onClick={clearCart}>Tozalash</button>
+              <button className="btn-confirm" onClick={handleConfirmOrder} disabled={cart.length === 0}>✔ Tasdiqlash</button>
+            </div>
+          </aside>
+        </main>
+
+        {/* Cashier Modals */}
+        {showCustomersModal && (
+          <div className="modal open" id="customers-modal">
+            <div className="modal-card customer-card-modal">
+              <div className="modal-head">
+                <h2>👥 Mijozlar Bazasi</h2>
+                <button className="modal-x" onClick={() => setShowCustomersModal(false)}>✕</button>
+              </div>
+              <div className="add-customer-form">
+                <h4>Yangi mijoz qo'shish</h4>
+                <div className="form-row">
+                  <input type="text" placeholder="F.I.O." value={newCustName} onChange={e => setNewCustName(e.target.value)} />
+                  <input type="text" placeholder="Telefon" value={newCustPhone} onChange={e => setNewCustPhone(e.target.value)} />
+                  <button className="btn-confirm" onClick={handleAddCustomer}>Qo'shish</button>
+                </div>
+              </div>
+              <div className="search-cust-row">
+                <input type="text" placeholder="Qidirish..." value={searchCustInput} onChange={e => setSearchCustInput(e.target.value)} />
+              </div>
+              <div className="table-container">
+                <table className="w-table">
+                  <thead>
+                    <tr>
+                      <th>F.I.O.</th>
+                      <th>Telefon</th>
+                      <th>Xaridlar</th>
+                      <th>Harakat</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCustomersList.map(c => (
+                      <tr key={c.id}>
+                        <td><b>{c.name}</b></td>
+                        <td>{c.phone}</td>
+                        <td>{c.purchase_count} ta</td>
+                        <td><button className="btn-inline-edit" onClick={() => selectCustForOrder(c)}>✅ Tanlash</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showReceiptModal && receiptOrder && receiptTotals && (
+          <div className="modal open" id="receipt-modal">
+            <div className="modal-card receipt">
+              <div id="receipt-body">
+                <div className="r-store">
+                  <img src="/logo.png" alt="Chempion Burger" style={{ height: "48px", marginBottom: "0.4rem" }} />
+                  <small>Chek: #{receiptOrder.order_number}</small>
+                </div>
+                <div className="r-line"><span>Sana</span><span>{new Date(receiptOrder.created_at).toLocaleString('uz-UZ')}</span></div>
+                <div className="r-line"><span>Turi</span><span>{TYPE_LABEL[receiptOrder.type]}</span></div>
+                {receiptOrder.table_number && <div className="r-line"><span>Stol</span><span>№{receiptOrder.table_number}</span></div>}
+                {selectedCustomer && <div className="r-line"><span>Mijoz</span><span>{selectedCustomer.name}</span></div>}
+                <div className="r-line"><span>To'lov usuli</span><span>{PM_LABEL[receiptOrder.payment_method] || receiptOrder.payment_method}</span></div>
+                <div className="r-items">
+                  {cart.map((i, idx) => (
+                    <div className="r-line" key={idx}>
+                      <span>{i.name} ×{i.qty}</span>
+                      <b>{fmt(i.price * i.qty)}</b>
+                    </div>
+                  ))}
+                </div>
+                <div className="r-line"><span>Oraliq</span><span>{fmt(receiptTotals.subtotal)}</span></div>
+                <div className="r-line"><span>Xizmat haqi</span><span>{fmt(receiptTotals.service)}</span></div>
+                <div className="r-line"><span>Chegirma</span><span>{fmt(receiptTotals.discount)}</span></div>
+                <div className="r-total"><span>JAMI</span><b>{fmt(receiptTotals.total)}</b></div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => window.print()}>🖨 Chop etish</button>
+                <button className="btn-confirm" onClick={handleReceiptClose}>Yangi buyurtma</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // --- Main Layout Switcher ---
+  if (user && user.role === 'admin') {
+    return (
+      <div className="admin-layout">
+        {/* Sidebar Nav */}
+        <aside className="sidebar">
+          <div className="sidebar-logo">
+            <img src="/logo.png" alt="Chempion Burger Logo" />
+            <span className="brand-subtitle">Chempion Burger</span>
+          </div>
+          <div className="sidebar-menu">
+            <button className={`sidebar-item ${adminTab === 'dashboard' ? 'active' : ''}`} onClick={() => setAdminTab('dashboard')}>🎛 Дашборд</button>
+            <button className={`sidebar-item ${adminTab === 'orders' ? 'active' : ''}`} onClick={() => setAdminTab('orders')}>🛍 Заказы</button>
+            <button className={`sidebar-item ${adminTab === 'menu' ? 'active' : ''}`} onClick={() => setAdminTab('menu')}>📖 Меню</button>
+            <button className={`sidebar-item ${adminTab === 'warehouse' ? 'active' : ''}`} onClick={() => setAdminTab('warehouse')}>📦 Склад</button>
+            <button className={`sidebar-item ${adminTab === 'customers' ? 'active' : ''}`} onClick={() => setAdminTab('customers')}>👥 Клиенты</button>
+            <button className={`sidebar-item ${adminTab === 'reports' ? 'active' : ''}`} onClick={() => setAdminTab('reports')}>📝 Отчёты</button>
+            <button className="sidebar-item" onClick={handleLogout} style={{ marginTop: "2rem" }}>🚪 Chiqish</button>
+          </div>
+          
+          <div className="promo-card">
+            <h4>YANGI BURGER</h4>
+            <p>Siz kutgan ultra-sirkli ajoyib ta'm!</p>
+            <img src="/logo.png" alt="" />
+            <button className="btn-promo-details" onClick={() => alert("Katta mol go'shti kotleti, double pishloq, maxsus sous!")}>Batafsil</button>
+          </div>
+        </aside>
+
+        {/* Main Work Area */}
+        <main className="admin-main">
+          {renderAdminTabContent()}
+        </main>
+
+        {/* Print Receipt Modal for Admin checkouts */}
+        {showReceiptModal && receiptOrder && receiptTotals && (
+          <div className="modal open" id="receipt-modal">
+            <div className="modal-card receipt">
+              <div id="receipt-body">
+                <div className="r-store">
+                  <img src="/logo.png" alt="Chempion Burger" style={{ height: "48px", marginBottom: "0.4rem" }} />
+                  <small>Chek: #{receiptOrder.order_number}</small>
+                </div>
+                <div className="r-line"><span>Sana</span><span>{new Date(receiptOrder.created_at).toLocaleString('uz-UZ')}</span></div>
+                <div className="r-line"><span>Turi</span><span>{TYPE_LABEL[receiptOrder.type]}</span></div>
+                {receiptOrder.table_number && <div className="r-line"><span>Stol</span><span>№{receiptOrder.table_number}</span></div>}
+                {selectedCustomer && <div className="r-line"><span>Mijoz</span><span>{selectedCustomer.name}</span></div>}
+                <div className="r-line"><span>To'lov usuli</span><span>{PM_LABEL[receiptOrder.payment_method] || receiptOrder.payment_method}</span></div>
+                <div className="r-items">
+                  {cart.map((i, idx) => (
+                    <div className="r-line" key={idx}>
+                      <span>{i.name} ×{i.qty}</span>
+                      <b>{fmt(i.price * i.qty)}</b>
+                    </div>
+                  ))}
+                </div>
+                <div className="r-line"><span>Oraliq</span><span>{fmt(receiptTotals.subtotal)}</span></div>
+                <div className="r-line"><span>Xizmat haqi</span><span>{fmt(receiptTotals.service)}</span></div>
+                <div className="r-line"><span>Chegirma</span><span>{fmt(receiptTotals.discount)}</span></div>
+                <div className="r-total"><span>JAMI</span><b>{fmt(receiptTotals.total)}</b></div>
+              </div>
+              <div className="modal-actions">
+                <button className="btn-secondary" onClick={() => window.print()}>🖨 Chop etish</button>
+                <button className="btn-confirm" onClick={handleReceiptClose}>Yopish</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Cashier Role Layout
+  return renderCashierLayout();
 }
