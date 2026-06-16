@@ -18,7 +18,9 @@ const state = {
   inventory: [],
   recipes: [],
   currentUser: null,
-  isDemoMode: false
+  isDemoMode: false,
+  customers: [],
+  selectedCustomer: null
 };
 
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
@@ -133,12 +135,16 @@ function enableDemoMode() {
   if (!localStorage.getItem('cb_order_items')) {
     localStorage.setItem('cb_order_items', JSON.stringify([]));
   }
+  if (!localStorage.getItem('cb_customers')) {
+    localStorage.setItem('cb_customers', JSON.stringify([]));
+  }
   
   // State-ni to'ldirish
   state.categories = JSON.parse(localStorage.getItem('cb_categories')) || [];
   state.products = JSON.parse(localStorage.getItem('cb_products')) || [];
   state.inventory = JSON.parse(localStorage.getItem('cb_inventory')) || [];
   state.recipes = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+  state.customers = JSON.parse(localStorage.getItem('cb_customers')) || [];
   
   renderCategories(); renderProducts();
 }
@@ -188,12 +194,16 @@ function renderProducts() {
   const list = state.activeCategory === 'all'
     ? state.products
     : state.products.filter(p => p.category_id === state.activeCategory);
-  grid.innerHTML = list.map(p => `
-    <div class="product-card" data-id="${p.id}">
-      <div class="p-name">${p.name}</div>
-      <div class="p-desc">${p.description || ''}</div>
-      <div class="p-price">${fmt(p.price)}</div>
-    </div>`).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
+  grid.innerHTML = list.map(p => {
+    const imgHtml = p.image_url ? `<div class="p-img"><img src="${p.image_url}" alt="${p.name}"></div>` : '';
+    return `
+      <div class="product-card" data-id="${p.id}">
+        ${imgHtml}
+        <div class="p-name">${p.name}</div>
+        <div class="p-desc">${p.description || ''}</div>
+        <div class="p-price">${fmt(p.price)}</div>
+      </div>`;
+  }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
   grid.querySelectorAll('.product-card').forEach(card => card.onclick = () => addToCart(Number(card.dataset.id)));
 }
 
@@ -236,17 +246,38 @@ function renderCart() {
 
 function calcTotals() {
   const subtotal = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
+  
+  let bonusDiscount = 0;
+  if (state.selectedCustomer) {
+    const isBonusOrder = (state.selectedCustomer.purchase_count + 1) % 5 === 0;
+    if (isBonusOrder && state.cart.length > 0) {
+      // Find the cheapest item in the cart (applies to 1 qty of it)
+      let cheapest = state.cart[0];
+      for (const item of state.cart) {
+        if (item.price < cheapest.price) {
+          cheapest = item;
+        }
+      }
+      bonusDiscount = cheapest.price;
+    }
+  }
+  
   const pct = parseFloat(document.getElementById('service-pct').value) || 0;
-  const service = Math.round(subtotal * pct / 100);
-  const discount = parseFloat(document.getElementById('discount-input').value) || 0;
+  const service = Math.round((subtotal - bonusDiscount) * pct / 100);
+  const discountInput = parseFloat(document.getElementById('discount-input').value) || 0;
+  const discount = discountInput + bonusDiscount;
   const total = Math.max(0, subtotal + service - discount);
-  return { subtotal, service, discount, total };
+  return { subtotal, service, discount, total, bonusDiscount };
 }
 function updateSummary() {
   const t = calcTotals();
   document.getElementById('sum-subtotal').textContent = fmt(t.subtotal);
   document.getElementById('sum-service').textContent = fmt(t.service);
-  document.getElementById('sum-discount').textContent = fmt(t.discount);
+  if (t.bonusDiscount > 0) {
+    document.getElementById('sum-discount').textContent = `${fmt(t.discount - t.bonusDiscount)} + ${fmt(t.bonusDiscount)} (Bonus)`;
+  } else {
+    document.getElementById('sum-discount').textContent = fmt(t.discount);
+  }
   document.getElementById('sum-total').textContent = fmt(t.total);
   document.getElementById('btn-confirm').disabled = state.cart.length === 0;
 }
@@ -286,6 +317,7 @@ document.getElementById('btn-confirm').onclick = async () => {
         subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
         cashier: state.currentUser ? state.currentUser.label : 'Kassir',
         payment_method: state.paymentMethod,
+        customer_id: state.selectedCustomer ? state.selectedCustomer.id : null,
         created_at: new Date().toISOString(),
         paid_at: new Date().toISOString()
       };
@@ -321,6 +353,18 @@ document.getElementById('btn-confirm').onclick = async () => {
       state.inventory = inv;
       renderWarehouseStock();
       
+      // localstorage mijoz xaridlarini yangilash
+      if (state.selectedCustomer) {
+        const custs = JSON.parse(localStorage.getItem('cb_customers')) || [];
+        const c = custs.find(x => x.id === state.selectedCustomer.id);
+        if (c) {
+          c.purchase_count++;
+          localStorage.setItem('cb_customers', JSON.stringify(custs));
+        }
+        state.selectedCustomer.purchase_count++;
+        await loadCustomers();
+      }
+      
       showReceipt(newOrder, t);
     } catch (e) {
       alert("Xatolik: " + e.message);
@@ -342,6 +386,7 @@ document.getElementById('btn-confirm').onclick = async () => {
       subtotal: t.subtotal, service_charge: t.service, discount: t.discount, total: t.total,
       cashier: state.currentUser ? state.currentUser.label : 'Kassir', paid_at: new Date().toISOString(),
       payment_method: state.paymentMethod,
+      customer_id: state.selectedCustomer ? state.selectedCustomer.id : null
     }).select().single();
     if (error) throw error;
 
@@ -368,6 +413,15 @@ document.getElementById('btn-confirm').onclick = async () => {
       console.error('Ombordan kamaytirishda xatolik:', deductErr);
     }
 
+    // Mijoz xaridlarini yangilash
+    if (state.selectedCustomer) {
+      const { error: custErr } = await sb.from('cb_customers').update({
+        purchase_count: state.selectedCustomer.purchase_count + 1
+      }).eq('id', state.selectedCustomer.id);
+      if (custErr) console.error('Mijoz xaridlarini yangilashda xato:', custErr);
+      await loadCustomers();
+    }
+
     showReceipt(order, t);
   } catch (err) {
     alert('Buyurtma saqlanmadi: ' + (err.message || err));
@@ -382,6 +436,10 @@ function showReceipt(order, t) {
   const PM_LABEL = { naqd: '💵 Naqd', karta: '💳 Karta' };
   const itemsHtml = state.cart.map(i =>
     `<div class="r-line"><span>${i.name} ×${i.qty}</span><b>${fmt(i.price * i.qty)}</b></div>`).join('');
+  let customerHtml = '';
+  if (state.selectedCustomer) {
+    customerHtml = `<div class="r-line"><span>Mijoz</span><span>${state.selectedCustomer.name}</span></div>`;
+  }
   document.getElementById('receipt-body').innerHTML = `
     <div class="r-store">
       <img src="logo.png" alt="Chempion Burger" style="height:48px;margin-bottom:0.4rem;">
@@ -390,6 +448,7 @@ function showReceipt(order, t) {
     <div class="r-line"><span>Sana</span><span>${now.toLocaleString('uz-UZ')}</span></div>
     <div class="r-line"><span>Turi</span><span>${TYPE_LABEL[order.type]}</span></div>
     ${order.table_number ? `<div class="r-line"><span>Stol</span><span>№${order.table_number}</span></div>` : ''}
+    ${customerHtml}
     <div class="r-line"><span>To'lov usuli</span><span>${PM_LABEL[order.payment_method] || order.payment_method}</span></div>
     <div class="r-items">${itemsHtml}</div>
     <div class="r-line"><span>Oraliq</span><span>${fmt(t.subtotal)}</span></div>
@@ -408,6 +467,8 @@ document.getElementById('receipt-close').onclick = () => {
   state.paymentMethod = 'naqd';
   document.querySelectorAll('.pm-btn').forEach(x => x.classList.remove('active'));
   document.querySelector('.pm-btn[data-method="naqd"]').classList.add('active');
+  state.selectedCustomer = null;
+  updateSelectedCustomerUI();
   renderCart();
 };
 
@@ -500,18 +561,22 @@ async function handleLogin() {
   document.getElementById('user-badge').style.display = 'flex';
   document.getElementById('user-role-label').textContent = state.currentUser.label;
   
+  document.getElementById('open-customers').style.display = 'block';
   if (state.currentUser.role === 'admin') {
     document.getElementById('open-reports').style.display = 'block';
     document.getElementById('open-warehouse').style.display = 'block';
+    document.getElementById('open-menu-edit').style.display = 'block';
   } else {
     document.getElementById('open-reports').style.display = 'none';
     document.getElementById('open-warehouse').style.display = 'none';
+    document.getElementById('open-menu-edit').style.display = 'none';
   }
   
   // Ma'lumotlarni yuklash
   await loadMenu();
   await loadInventory();
   await loadRecipes();
+  await loadCustomers();
 }
 
 function handleLogout() {
@@ -524,6 +589,10 @@ function handleLogout() {
   document.getElementById('user-badge').style.display = 'none';
   document.getElementById('open-reports').style.display = 'none';
   document.getElementById('open-warehouse').style.display = 'none';
+  document.getElementById('open-customers').style.display = 'none';
+  document.getElementById('open-menu-edit').style.display = 'none';
+  state.selectedCustomer = null;
+  updateSelectedCustomerUI();
   
   // maydonlarni tozalash
   document.getElementById('login-username').value = '';
@@ -820,10 +889,552 @@ async function deleteRecipeItem(id) {
   }
 }
 
-// Global qilish (HTML onClick uchun)
+// ---------- Mijozlar Baza Kodlari ----------
+async function loadCustomers() {
+  if (state.isDemoMode) {
+    state.customers = JSON.parse(localStorage.getItem('cb_customers')) || [];
+    renderCustomersList();
+    return;
+  }
+  try {
+    const { data, error } = await sb.from('cb_customers').select('*').order('name');
+    if (error) throw error;
+    state.customers = data || [];
+    renderCustomersList();
+  } catch (err) {
+    console.error('Mijozlar yuklanmadi:', err);
+    state.customers = JSON.parse(localStorage.getItem('cb_customers') || '[]');
+    renderCustomersList();
+  }
+}
+
+function renderCustomersList() {
+  const tbody = document.getElementById('customers-list-body');
+  if (!tbody) return;
+  
+  const searchVal = document.getElementById('search-cust-input').value.trim().toLowerCase();
+  
+  let list = state.customers;
+  if (searchVal) {
+    list = list.filter(c => c.name.toLowerCase().includes(searchVal) || c.phone.includes(searchVal));
+  }
+  
+  if (list.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Mijozlar topilmadi</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = list.map(c => `
+    <tr>
+      <td><b>${c.name}</b></td>
+      <td>${c.phone}</td>
+      <td><span class="badge badge-success">${c.purchase_count} ta xarid</span></td>
+      <td>
+        <button class="btn-inline-edit" onclick="selectCustForOrder(${c.id})" style="color:var(--green)">✅ Tanlash</button>
+        <button class="btn-inline-del" onclick="deleteCustomer(${c.id})">❌</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function selectCustForOrder(id) {
+  const c = state.customers.find(x => x.id === id);
+  if (c) {
+    state.selectedCustomer = c;
+    updateSelectedCustomerUI();
+    document.getElementById('customers-modal').classList.remove('open');
+  }
+}
+
+async function addCustomer() {
+  const nameInput = document.getElementById('new-cust-name');
+  const phoneInput = document.getElementById('new-cust-phone');
+  const name = nameInput.value.trim();
+  const phone = phoneInput.value.trim();
+  
+  if (!name || !phone) {
+    alert("Iltimos, ismi va telefon raqamini to'liq kiriting!");
+    return;
+  }
+  
+  if (state.isDemoMode) {
+    const custs = JSON.parse(localStorage.getItem('cb_customers')) || [];
+    const exists = custs.some(c => c.phone === phone);
+    if (exists) {
+      alert("Ushbu telefon raqamli mijoz allaqachon mavjud!");
+      return;
+    }
+    const newCust = { id: Date.now(), name, phone, purchase_count: 0, created_at: new Date().toISOString() };
+    custs.push(newCust);
+    localStorage.setItem('cb_customers', JSON.stringify(custs));
+    
+    nameInput.value = '';
+    phoneInput.value = '';
+    await loadCustomers();
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('cb_customers').insert({ name, phone });
+    if (error) {
+      if (error.code === '23505') {
+        alert("Ushbu telefon raqamli mijoz allaqachon mavjud!");
+      } else {
+        throw error;
+      }
+    } else {
+      nameInput.value = '';
+      phoneInput.value = '';
+      await loadCustomers();
+    }
+  } catch (err) {
+    alert("Xatolik yuz berdi: " + err.message);
+  }
+}
+
+async function deleteCustomer(id) {
+  if (!confirm("Haqiqatan ham ushbu mijozni o'chirmoqchisiz?")) return;
+  
+  if (state.isDemoMode) {
+    let custs = JSON.parse(localStorage.getItem('cb_customers')) || [];
+    custs = custs.filter(x => x.id !== id);
+    localStorage.setItem('cb_customers', JSON.stringify(custs));
+    
+    if (state.selectedCustomer && state.selectedCustomer.id === id) {
+      state.selectedCustomer = null;
+      updateSelectedCustomerUI();
+    }
+    await loadCustomers();
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('cb_customers').delete().eq('id', id);
+    if (error) throw error;
+    
+    if (state.selectedCustomer && state.selectedCustomer.id === id) {
+      state.selectedCustomer = null;
+      updateSelectedCustomerUI();
+    }
+    await loadCustomers();
+  } catch (err) {
+    alert("O'chirishda xatolik: " + err.message);
+  }
+}
+
+function updateSelectedCustomerUI() {
+  const badge = document.getElementById('selected-customer-badge');
+  const nameSpan = document.getElementById('selected-customer-name');
+  const searchInput = document.getElementById('cart-customer-search');
+  const bonusAlert = document.getElementById('loyalty-bonus-alert');
+
+  if (state.selectedCustomer) {
+    badge.style.display = 'flex';
+    nameSpan.textContent = `${state.selectedCustomer.name} (${state.selectedCustomer.phone}) [Xaridlar: ${state.selectedCustomer.purchase_count}]`;
+    searchInput.style.display = 'none';
+    
+    const isBonusOrder = (state.selectedCustomer.purchase_count + 1) % 5 === 0;
+    if (isBonusOrder && state.cart.length > 0) {
+      bonusAlert.style.display = 'block';
+    } else {
+      bonusAlert.style.display = 'none';
+    }
+  } else {
+    badge.style.display = 'none';
+    searchInput.style.display = 'block';
+    searchInput.value = '';
+    bonusAlert.style.display = 'none';
+  }
+  updateSummary();
+}
+
+// ---------- Menyu Tahrirlash Kodlari ----------
+function switchMenuEditTab(tab) {
+  document.querySelectorAll('#menu-edit-modal .w-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#menu-edit-modal .w-content').forEach(c => c.classList.remove('active'));
+  
+  if (tab === 'products') {
+    document.getElementById('me-tab-products').classList.add('active');
+    document.getElementById('me-content-products').classList.add('active');
+    renderMenuProductsTable();
+  } else if (tab === 'categories') {
+    document.getElementById('me-tab-categories').classList.add('active');
+    document.getElementById('me-content-categories').classList.add('active');
+    renderMenuCategoriesTable();
+  }
+}
+
+function populateMenuEditCategories() {
+  const catSelect = document.getElementById('new-prod-cat');
+  if (catSelect) {
+    catSelect.innerHTML = state.categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+  }
+}
+
+function renderMenuProductsTable() {
+  const tbody = document.getElementById('menu-products-body');
+  if (!tbody) return;
+  
+  if (state.products.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem;">Mahsulotlar yo'q</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = state.products.map(p => {
+    const cat = state.categories.find(c => c.id === p.category_id);
+    const catName = cat ? cat.name : '—';
+    const imgHtml = p.image_url ? `<img src="${p.image_url}" class="img-in-table">` : `<div style="text-align:center; font-size:1.2rem;">🍔</div>`;
+    
+    return `
+      <tr>
+        <td>${imgHtml}</td>
+        <td><b>${p.name}</b></td>
+        <td>${catName}</td>
+        <td>${fmt(p.price)}</td>
+        <td>
+          <button class="btn-inline-edit" onclick="editProduct(${p.id})">✏️</button>
+          <button class="btn-inline-del" onclick="deleteProduct(${p.id})">❌</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function renderMenuCategoriesTable() {
+  const tbody = document.getElementById('menu-categories-body');
+  if (!tbody) return;
+  
+  if (state.categories.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Kategoriyalar yo'q</td></tr>`;
+    return;
+  }
+  
+  tbody.innerHTML = state.categories.map(c => `
+    <tr>
+      <td style="font-size:1.3rem; text-align:center;">${c.icon || ''}</td>
+      <td><b>${c.name}</b></td>
+      <td>${c.sort_order}</td>
+      <td>
+        <button class="btn-inline-del" onclick="deleteCategory(${c.id})">❌</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+let currentBase64Image = "";
+
+function setupImageHandlers() {
+  const imgFileInput = document.getElementById('new-prod-imgfile');
+  const imgUrlInput = document.getElementById('new-prod-imgurl');
+  const imgPreviewBox = document.getElementById('new-prod-img-preview');
+  const previewImg = document.getElementById('prod-preview-img');
+  const removePreviewBtn = document.getElementById('btn-remove-preview-img');
+
+  if (!imgFileInput) return;
+
+  imgFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      currentBase64Image = event.target.result;
+      previewImg.src = currentBase64Image;
+      imgPreviewBox.style.display = 'block';
+      imgUrlInput.value = '';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  imgUrlInput.addEventListener('input', () => {
+    const val = imgUrlInput.value.trim();
+    if (val) {
+      currentBase64Image = val;
+      previewImg.src = val;
+      imgPreviewBox.style.display = 'block';
+      imgFileInput.value = '';
+    } else {
+      currentBase64Image = '';
+      imgPreviewBox.style.display = 'none';
+    }
+  });
+
+  removePreviewBtn.onclick = () => {
+    currentBase64Image = "";
+    previewImg.src = "";
+    imgPreviewBox.style.display = 'none';
+    imgFileInput.value = '';
+    imgUrlInput.value = '';
+  };
+}
+
+async function saveProduct() {
+  const editIdField = document.getElementById('edit-prod-id');
+  const catSelect = document.getElementById('new-prod-cat');
+  const nameInput = document.getElementById('new-prod-name');
+  const priceInput = document.getElementById('new-prod-price');
+  const descInput = document.getElementById('new-prod-desc');
+  
+  const categoryId = Number(catSelect.value);
+  const name = nameInput.value.trim();
+  const price = parseFloat(priceInput.value) || 0;
+  const description = descInput.value.trim();
+  const editId = editIdField.value ? Number(editIdField.value) : null;
+  const imageUrl = currentBase64Image;
+  
+  if (!name || isNaN(price) || price <= 0) {
+    alert("Iltimos, mahsulot nomi va to'g'ri narxini kiriting!");
+    return;
+  }
+  
+  const productData = {
+    category_id: categoryId,
+    name,
+    price,
+    description,
+    image_url: imageUrl,
+    available: true
+  };
+  
+  if (state.isDemoMode) {
+    const prods = JSON.parse(localStorage.getItem('cb_products')) || [];
+    if (editId) {
+      const idx = prods.findIndex(x => x.id === editId);
+      if (idx !== -1) {
+        prods[idx] = { ...prods[idx], ...productData };
+      }
+    } else {
+      prods.push({ id: Date.now(), ...productData });
+    }
+    localStorage.setItem('cb_products', JSON.stringify(prods));
+    resetProductForm();
+    await loadMenu();
+    renderMenuProductsTable();
+    return;
+  }
+  
+  try {
+    let error;
+    if (editId) {
+      const { error: err } = await sb.from('cb_products').update(productData).eq('id', editId);
+      error = err;
+    } else {
+      const { error: err } = await sb.from('cb_products').insert(productData);
+      error = err;
+    }
+    
+    if (error) throw error;
+    resetProductForm();
+    await loadMenu();
+    renderMenuProductsTable();
+  } catch (err) {
+    alert("Saqlashda xatolik: " + err.message);
+  }
+}
+
+function resetProductForm() {
+  document.getElementById('edit-prod-id').value = '';
+  document.getElementById('new-prod-name').value = '';
+  document.getElementById('new-prod-price').value = '';
+  document.getElementById('new-prod-desc').value = '';
+  document.getElementById('new-prod-imgurl').value = '';
+  document.getElementById('new-prod-imgfile').value = '';
+  currentBase64Image = '';
+  document.getElementById('prod-preview-img').src = '';
+  document.getElementById('new-prod-img-preview').style.display = 'none';
+  document.getElementById('btn-cancel-edit-product').style.display = 'none';
+  document.getElementById('product-form-title').textContent = 'Yangi mahsulot qo\'shish';
+}
+
+function editProduct(id) {
+  const p = state.products.find(x => x.id === id);
+  if (!p) return;
+  
+  document.getElementById('edit-prod-id').value = p.id;
+  document.getElementById('new-prod-cat').value = p.category_id;
+  document.getElementById('new-prod-name').value = p.name;
+  document.getElementById('new-prod-price').value = p.price;
+  document.getElementById('new-prod-desc').value = p.description || '';
+  
+  if (p.image_url) {
+    currentBase64Image = p.image_url;
+    document.getElementById('prod-preview-img').src = p.image_url;
+    document.getElementById('new-prod-img-preview').style.display = 'block';
+  } else {
+    currentBase64Image = '';
+    document.getElementById('prod-preview-img').src = '';
+    document.getElementById('new-prod-img-preview').style.display = 'none';
+  }
+  
+  document.getElementById('btn-cancel-edit-product').style.display = 'inline-block';
+  document.getElementById('product-form-title').textContent = 'Mahsulotni tahrirlash';
+  document.querySelector('#menu-edit-modal .modal-card').scrollTop = 0;
+}
+
+async function deleteProduct(id) {
+  if (!confirm("Ushbu mahsulotni ro'yxatdan o'chirmoqchisiz?")) return;
+  
+  if (state.isDemoMode) {
+    let prods = JSON.parse(localStorage.getItem('cb_products')) || [];
+    prods = prods.filter(x => x.id !== id);
+    localStorage.setItem('cb_products', JSON.stringify(prods));
+    
+    let recs = JSON.parse(localStorage.getItem('cb_recipes')) || [];
+    recs = recs.filter(x => x.product_id !== id);
+    localStorage.setItem('cb_recipes', JSON.stringify(recs));
+    
+    await loadMenu();
+    await loadRecipes();
+    renderMenuProductsTable();
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('cb_products').delete().eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    await loadRecipes();
+    renderMenuProductsTable();
+  } catch (err) {
+    alert("O'chirishda xatolik: " + err.message);
+  }
+}
+
+async function addCategory() {
+  const nameInput = document.getElementById('new-cat-name');
+  const iconInput = document.getElementById('new-cat-icon');
+  const sortInput = document.getElementById('new-cat-sort');
+  
+  const name = nameInput.value.trim();
+  const icon = iconInput.value.trim() || '🍔';
+  const sortOrder = parseInt(sortInput.value) || 1;
+  
+  if (!name) {
+    alert("Kategoriya nomini kiriting!");
+    return;
+  }
+  
+  const categoryData = { name, icon, sort_order: sortOrder, visible: true };
+  
+  if (state.isDemoMode) {
+    const cats = JSON.parse(localStorage.getItem('cb_categories')) || [];
+    cats.push({ id: Date.now(), ...categoryData });
+    localStorage.setItem('cb_categories', JSON.stringify(cats));
+    
+    nameInput.value = '';
+    iconInput.value = '';
+    sortInput.value = '1';
+    await loadMenu();
+    renderMenuCategoriesTable();
+    populateMenuEditCategories();
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('cb_categories').insert(categoryData);
+    if (error) throw error;
+    
+    nameInput.value = '';
+    iconInput.value = '';
+    sortInput.value = '1';
+    await loadMenu();
+    renderMenuCategoriesTable();
+    populateMenuEditCategories();
+  } catch (err) {
+    alert("Kategoriya saqlashda xatolik: " + err.message);
+  }
+}
+
+async function deleteCategory(id) {
+  if (!confirm("Diqqat! Kategoriyani o'chirsangiz uning ichidagi barcha mahsulotlar ham o'chib ketishi mumkin. Rozimisiz?")) return;
+  
+  if (state.isDemoMode) {
+    let cats = JSON.parse(localStorage.getItem('cb_categories')) || [];
+    cats = cats.filter(x => x.id !== id);
+    localStorage.setItem('cb_categories', JSON.stringify(cats));
+    
+    let prods = JSON.parse(localStorage.getItem('cb_products')) || [];
+    prods = prods.filter(x => x.category_id !== id);
+    localStorage.setItem('cb_products', JSON.stringify(prods));
+    
+    await loadMenu();
+    renderMenuCategoriesTable();
+    populateMenuEditCategories();
+    return;
+  }
+  
+  try {
+    const { error } = await sb.from('cb_categories').delete().eq('id', id);
+    if (error) throw error;
+    await loadMenu();
+    renderMenuCategoriesTable();
+    populateMenuEditCategories();
+  } catch (err) {
+    alert("Kategoriyani o'chirishda xatolik: " + err.message);
+  }
+}
+
+function setupCustomerAutocomplete() {
+  const custSearchInput = document.getElementById('cart-customer-search');
+  const custDropdown = document.getElementById('cart-customer-dropdown');
+  if (!custSearchInput) return;
+
+  custSearchInput.addEventListener('input', () => {
+    const val = custSearchInput.value.trim().toLowerCase();
+    if (!val) {
+      custDropdown.style.display = 'none';
+      return;
+    }
+    
+    const matches = state.customers.filter(c => 
+      c.name.toLowerCase().includes(val) || c.phone.includes(val)
+    );
+    
+    if (matches.length === 0) {
+      custDropdown.innerHTML = `<div class="customer-dropdown-item" style="color:var(--muted);cursor:default;">Mijoz topilmadi</div>`;
+    } else {
+      custDropdown.innerHTML = matches.map(c => `
+        <div class="customer-dropdown-item" data-id="${c.id}">
+          ${c.name} (${c.phone}) [Xarid: ${c.purchase_count}]
+        </div>
+      `).join('');
+      
+      custDropdown.querySelectorAll('.customer-dropdown-item').forEach(item => {
+        item.onclick = () => {
+          const id = Number(item.dataset.id);
+          const match = state.customers.find(x => x.id === id);
+          if (match) {
+            state.selectedCustomer = match;
+            updateSelectedCustomerUI();
+            custDropdown.style.display = 'none';
+          }
+        };
+      });
+    }
+    custDropdown.style.display = 'block';
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!custSearchInput.contains(e.target) && !custDropdown.contains(e.target)) {
+      custDropdown.style.display = 'none';
+    }
+  });
+
+  document.getElementById('btn-remove-customer').onclick = () => {
+    state.selectedCustomer = null;
+    updateSelectedCustomerUI();
+  };
+}
+
+// Global qilish (HTML onClick va boshqalar uchun)
 window.editIngStock = editIngStock;
 window.deleteIngredient = deleteIngredient;
 window.deleteRecipeItem = deleteRecipeItem;
+window.selectCustForOrder = selectCustForOrder;
+window.deleteCustomer = deleteCustomer;
+window.editProduct = editProduct;
+window.deleteProduct = deleteProduct;
+window.deleteCategory = deleteCategory;
 
 // --- Hodisa bog'lamalari ---
 document.getElementById('btn-login').onclick = handleLogin;
@@ -843,6 +1454,35 @@ document.getElementById('w-tab-recipes').onclick = () => switchWarehouseTab('rec
 document.getElementById('btn-add-ingredient').onclick = addIngredient;
 document.getElementById('recipe-product-select').onchange = renderRecipeItems;
 document.getElementById('btn-save-recipe-item').onclick = saveRecipeItem;
+
+// Yangi Modallar Hodisalari
+document.getElementById('open-customers').onclick = () => {
+  document.getElementById('customers-modal').classList.add('open');
+  loadCustomers();
+};
+document.getElementById('customers-close').onclick = () => {
+  document.getElementById('customers-modal').classList.remove('open');
+};
+
+document.getElementById('open-menu-edit').onclick = () => {
+  document.getElementById('menu-edit-modal').classList.add('open');
+  switchMenuEditTab('products');
+  populateMenuEditCategories();
+};
+document.getElementById('menu-edit-close').onclick = () => {
+  document.getElementById('menu-edit-modal').classList.remove('open');
+  resetProductForm();
+};
+
+document.getElementById('me-tab-products').onclick = () => switchMenuEditTab('products');
+document.getElementById('me-tab-categories').onclick = () => switchMenuEditTab('categories');
+document.getElementById('btn-add-category').onclick = addCategory;
+document.getElementById('btn-save-product').onclick = saveProduct;
+document.getElementById('btn-cancel-edit-product').onclick = resetProductForm;
+
+// Autocomplete va rasmlar sozlamalari
+setupCustomerAutocomplete();
+setupImageHandlers();
 
 // ---------- Ishga tushirish ----------
 renderCart();

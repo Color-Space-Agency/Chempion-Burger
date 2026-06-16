@@ -4,16 +4,10 @@
 --  Jadvallar "cb_" prefiksli (boshqa loyiha ma'lumotiga aralashmaydi).
 -- ============================================================================
 
--- Mavjud bazani yangilash uchun tezkor buyruq (agar jadval oldindan bor bo'lsa):
+-- Mavjud jadvallarni yangilash uchun tezkor buyruqlar:
 alter table cb_orders add column if not exists payment_method text default 'naqd';
-
--- TOZALASH (Eski ma'lumotlarni tozalab, yangi menyuni yuklash uchun):
-truncate table cb_order_items cascade;
-truncate table cb_orders cascade;
-truncate table cb_recipes cascade;
-truncate table cb_products cascade;
-truncate table cb_categories cascade;
-truncate table cb_inventory cascade;
+alter table cb_orders add column if not exists customer_id bigint;
+alter table cb_products add column if not exists image_url text default '';
 
 -- ---------- Jadvallar ----------
 create table if not exists cb_categories (
@@ -30,7 +24,16 @@ create table if not exists cb_products (
   name        text not null,
   price       numeric default 0,
   description text default '',
+  image_url   text default '',
   available   boolean default true
+);
+
+create table if not exists cb_customers (
+  id             bigint primary key generated always as identity,
+  name           text not null,
+  phone          text not null unique,
+  purchase_count int default 0,
+  created_at     timestamptz default now()
 );
 
 create table if not exists cb_orders (
@@ -45,6 +48,7 @@ create table if not exists cb_orders (
   total          numeric default 0,
   cashier        text default '',
   payment_method text default 'naqd',
+  customer_id    bigint references cb_customers(id) on delete set null,
   note           text default '',
   created_at     timestamptz default now(),
   paid_at        timestamptz
@@ -77,19 +81,27 @@ create table if not exists cb_recipes (
   constraint cb_recipes_uniq unique (product_id, ingredient_id)
 );
 
+-- ---------- Constraints Yangilash ----------
+alter table cb_orders drop constraint if exists cb_orders_customer_id_fkey;
+alter table cb_orders add constraint cb_orders_customer_id_fkey foreign key (customer_id) references cb_customers(id) on delete set null;
+
 -- ---------- RLS (xavfsizlik) ----------
 alter table cb_categories  enable row level security;
 alter table cb_products    enable row level security;
+alter table cb_customers   enable row level security;
 alter table cb_orders      enable row level security;
 alter table cb_order_items enable row level security;
 alter table cb_inventory   enable row level security;
 alter table cb_recipes     enable row level security;
 
--- Menyu: faqat o'qish
+-- Menyu & Mijozlar: o'qish va yozish anonim
 drop policy if exists cb_cat_read on cb_categories;
 create policy cb_cat_read on cb_categories for select to anon, authenticated using (true);
 drop policy if exists cb_prod_read on cb_products;
 create policy cb_prod_read on cb_products for select to anon, authenticated using (true);
+
+drop policy if exists cb_cust_all on cb_customers;
+create policy cb_cust_all on cb_customers for all to anon, authenticated using (true) with check (true);
 
 -- Buyurtmalar: o'qish + yozish + yangilash
 drop policy if exists cb_ord_read on cb_orders;
@@ -121,13 +133,16 @@ end;
 $$;
 
 -- ---------- Real Kategoriyalar Yuklash ----------
-insert into cb_categories (name, icon, sort_order) values
+insert into cb_categories (name, icon, sort_order)
+select * from (values
   ('Burgerlar', '🍔', 1),
   ('Hot-doglar', '🌭', 2),
   ('Non kaboblar', '🌯', 3),
   ('Setlar', '🍟', 4),
   ('Ichimliklar', '🥤', 5),
-  ('Souslar', '🥫', 6);
+  ('Souslar', '🥫', 6)
+) as v(name, icon, sort_order)
+where not exists (select 1 from cb_categories);
 
 -- ---------- Real Mahsulotlar Yuklash (Flyer & Menu asosida) ----------
 insert into cb_products (category_id, name, price, description)
@@ -172,10 +187,12 @@ from (values
   ('Souslar', 'Ketchup', 2000, ''),
   ('Souslar', 'Mayonez', 2000, '')
 ) as p(cat, name, price, description)
-join cb_categories c on c.name = p.cat;
+join cb_categories c on c.name = p.cat
+where not exists (select 1 from cb_products);
 
 -- ---------- Real Ombor Masalliqlari Yuklash ----------
-insert into cb_inventory (name, stock, unit, min_stock) values
+insert into cb_inventory (name, stock, unit, min_stock)
+select * from (values
   ('Bulochka (burger)', 100, 'dona', 20),
   ('Kotlet (burger)', 150, 'dona', 25),
   ('Bulochka (hot-dog)', 100, 'dona', 20),
@@ -188,7 +205,9 @@ insert into cb_inventory (name, stock, unit, min_stock) values
   ('Ketchup', 3000, 'g', 500),
   ('Mayonez', 3000, 'g', 500),
   ('Sabzi salat', 5, 'kg', 1),
-  ('Pishloq (sir)', 100, 'dona', 20);
+  ('Pishloq (sir)', 100, 'dona', 20)
+) as v(name, stock, unit, min_stock)
+where not exists (select 1 from cb_inventory);
 
 -- ---------- Real Taomlar Retseptlari Setup ----------
 insert into cb_recipes (product_id, ingredient_id, quantity)
@@ -275,4 +294,5 @@ from (values
   ('Set 4', 'Pepsi 0.5l', 1)
 ) as r(prod_name, ing_name, qty)
 join cb_products p on p.name = r.prod_name
-join cb_inventory i on i.name = r.ing_name;
+join cb_inventory i on i.name = r.ing_name
+where not exists (select 1 from cb_recipes);

@@ -25,6 +25,8 @@
     <div class="topbar-actions">
       <button class="btn-report" id="open-reports" style="display: none;">📊 Hisobot</button>
       <button class="btn-report" id="open-warehouse" style="display: none;">📦 Ombor</button>
+      <button class="btn-report" id="open-customers" style="display: none;">👥 Mijozlar</button>
+      <button class="btn-report" id="open-menu-edit" style="display: none;">⚙️ Menyu</button>
       
       <div class="user-badge" id="user-badge" style="display: none;">
         <span class="user-icon">👤</span>
@@ -58,6 +60,21 @@
         <div class="payment-methods" id="payment-methods">
           <button class="pm-btn active" data-method="naqd">💵 Naqd</button>
           <button class="pm-btn" data-method="karta">💳 Karta</button>
+        </div>
+      </div>
+
+      <div class="customer-row">
+        <label>Mijoz (Bonus: 5-xarid bepul)</label>
+        <div class="customer-selector-container">
+          <input type="text" id="cart-customer-search" placeholder="Qidirish: ism yoki tel..." autocomplete="off">
+          <div id="cart-customer-dropdown" class="customer-dropdown" style="display: none;"></div>
+        </div>
+        <div id="selected-customer-badge" class="selected-customer-badge" style="display: none;">
+          <span id="selected-customer-name"></span>
+          <button id="btn-remove-customer" type="button">✕</button>
+        </div>
+        <div id="loyalty-bonus-alert" class="loyalty-bonus-alert" style="display: none;">
+          🎁 <b>Bonus Xarid!</b> Eng arzon mahsulot tekin bo'ladi.
         </div>
       </div>
 
@@ -212,6 +229,149 @@
               <button class="btn-confirm" id="btn-save-recipe-item">Saqlash</button>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mijozlar modal -->
+  <div class="modal" id="customers-modal">
+    <div class="modal-card customer-card-modal">
+      <div class="modal-head">
+        <h2>👥 Mijozlar Bazasi</h2>
+        <button class="modal-x" id="customers-close">✕</button>
+      </div>
+      
+      <div class="add-customer-form">
+        <h4>Yangi mijoz qo'shish</h4>
+        <div class="form-row">
+          <input type="text" id="new-cust-name" placeholder="F.I.O.">
+          <input type="text" id="new-cust-phone" placeholder="Telefon (masalan: +998901234567)">
+          <button class="btn-confirm" id="btn-add-customer">Qo'shish</button>
+        </div>
+      </div>
+
+      <div class="search-cust-row">
+        <input type="text" id="search-cust-input" placeholder="Mijozni qidirish (ism yoki tel)...">
+      </div>
+
+      <div class="table-container">
+        <table class="w-table">
+          <thead>
+            <tr>
+              <th>F.I.O.</th>
+              <th>Telefon</th>
+              <th>Xaridlar soni</th>
+              <th>Harakat</th>
+            </tr>
+          </thead>
+          <tbody id="customers-list-body">
+            <!-- Dynamic JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Menyu Tahrirlash modal -->
+  <div class="modal" id="menu-edit-modal">
+    <div class="modal-card menu-edit-card">
+      <div class="modal-head">
+        <h2>⚙️ Menyu Boshqaruvi</h2>
+        <button class="modal-x" id="menu-edit-close">✕</button>
+      </div>
+
+      <div class="warehouse-tabs">
+        <button class="w-tab active" id="me-tab-products">Mahsulotlar</button>
+        <button class="w-tab" id="me-tab-categories">Kategoriyalar</button>
+      </div>
+
+      <!-- Tab: Products -->
+      <div class="w-content active" id="me-content-products">
+        <div class="add-product-form">
+          <h4 id="product-form-title">Yangi mahsulot qo'shish</h4>
+          <input type="hidden" id="edit-prod-id" value="">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Kategoriya</label>
+              <select id="new-prod-cat">
+                <!-- Dynamic JS -->
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Nomi</label>
+              <input type="text" id="new-prod-name" placeholder="Masalan: Hamburger Special">
+            </div>
+            <div class="form-group">
+              <label>Narxi (so'm)</label>
+              <input type="number" id="new-prod-price" placeholder="Narxi">
+            </div>
+            <div class="form-group">
+              <label>Tavsifi</label>
+              <input type="text" id="new-prod-desc" placeholder="Tarkibi va ta'rifi">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Mahsulot rasmi</label>
+              <div class="image-upload-wrapper">
+                <input type="text" id="new-prod-imgurl" placeholder="Rasm URL havolasi (ixtiyoriy)">
+                <span style="color:var(--muted); font-size:0.8rem; text-align:center;">yoki</span>
+                <input type="file" id="new-prod-imgfile" accept="image/*" class="file-input-btn">
+              </div>
+              <div id="new-prod-img-preview" class="img-preview-box" style="display:none;">
+                <img src="" alt="Rasm preview" id="prod-preview-img">
+                <button type="button" id="btn-remove-preview-img">✕</button>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions-row">
+            <button class="btn-confirm" id="btn-save-product">Saqlash</button>
+            <button class="btn-secondary" id="btn-cancel-edit-product" style="display:none;">Bekor qilish</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="w-table">
+            <thead>
+              <tr>
+                <th>Rasm</th>
+                <th>Mahsulot nomi</th>
+                <th>Kategoriya</th>
+                <th>Narxi</th>
+                <th>Harakat</th>
+              </tr>
+            </thead>
+            <tbody id="menu-products-body">
+              <!-- Dynamic JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tab: Categories -->
+      <div class="w-content" id="me-content-categories">
+        <div class="add-category-form">
+          <h4>Yangi kategoriya qo'shish</h4>
+          <div class="form-row">
+            <input type="text" id="new-cat-name" placeholder="Kategoriya nomi">
+            <input type="text" id="new-cat-icon" placeholder="Emoji (masalan: 🍕)">
+            <input type="number" id="new-cat-sort" placeholder="Tartib raqami" value="1">
+            <button class="btn-confirm" id="btn-add-category">Qo'shish</button>
+          </div>
+        </div>
+        <div class="table-container">
+          <table class="w-table">
+            <thead>
+              <tr>
+                <th>Emoji</th>
+                <th>Kategoriya nomi</th>
+                <th>Tartibi</th>
+                <th>Harakat</th>
+              </tr>
+            </thead>
+            <tbody id="menu-categories-body">
+              <!-- Dynamic JS -->
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
