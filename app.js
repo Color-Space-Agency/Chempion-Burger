@@ -500,12 +500,12 @@ async function loadReport() {
   
   if (state.isDemoMode) {
     const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
-    list = orders.filter(o => o.status === 'paid' && o.created_at.slice(0, 10) === date);
+    list = orders.filter(o => o.status === 'paid' && o.created_at && o.created_at.slice(0, 10) === date);
   } else {
     const { data: orders, error } = await sb.from('cb_orders').select('*')
       .eq('status', 'paid')
-      .gte('created_at', date + 'T00:00:00')
-      .lte('created_at', date + 'T23:59:59.999');
+      .gte('created_at', date + 'T00:00:00+05:00')
+      .lte('created_at', date + 'T23:59:59.999+05:00');
     if (error) { body.innerHTML = `<div style="color:#e23b2e">Hisobot xatosi: ${error.message}</div>`; return; }
     list = orders || [];
   }
@@ -1617,12 +1617,14 @@ async function saveNewProductOrder() {
 async function openDashboard() {
   document.getElementById('dashboard-modal').classList.add('open');
   const datePicker = document.getElementById('db-date-picker');
-  if (!datePicker.value) {
-    const today = new Date();
-    const tzOffset = today.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(today - tzOffset)).toISOString().slice(0, 10);
-    datePicker.value = localISOTime;
-  }
+  
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+  const localISOTime = `${yyyy}-${mm}-${dd}`;
+  
+  datePicker.value = localISOTime;
   await loadDashboardData();
 }
 
@@ -1637,7 +1639,7 @@ async function loadDashboardData() {
   // 1. Load Orders & Items
   if (state.isDemoMode) {
     const allOrders = JSON.parse(localStorage.getItem('cb_orders')) || [];
-    orders = allOrders.filter(o => o.status === 'paid' && o.created_at.slice(0, 10) === dateStr);
+    orders = allOrders.filter(o => o.status === 'paid' && o.created_at && o.created_at.slice(0, 10) === dateStr);
 
     const orderIds = orders.map(o => o.id);
     if (orderIds.length > 0) {
@@ -1653,8 +1655,8 @@ async function loadDashboardData() {
       const { data: oData, error: oErr } = await sb.from('cb_orders')
         .select('*')
         .eq('status', 'paid')
-        .gte('created_at', dateStr + 'T00:00:00')
-        .lte('created_at', dateStr + 'T23:59:59.999');
+        .gte('created_at', dateStr + 'T00:00:00+05:00')
+        .lte('created_at', dateStr + 'T23:59:59.999+05:00');
       
       if (oErr) throw oErr;
       orders = oData || [];
@@ -1672,8 +1674,8 @@ async function loadDashboardData() {
       // Fetch new customers created today
       const { data: cData, error: cErr } = await sb.from('cb_customers')
         .select('*')
-        .gte('created_at', dateStr + 'T00:00:00')
-        .lte('created_at', dateStr + 'T23:59:59.999');
+        .gte('created_at', dateStr + 'T00:00:00+05:00')
+        .lte('created_at', dateStr + 'T23:59:59.999+05:00');
       if (cErr) throw cErr;
       newCustomersCount = (cData || []).length;
 
@@ -1733,7 +1735,7 @@ async function loadDashboardData() {
   let recentOrders = [];
   if (state.isDemoMode) {
     const allOrders = JSON.parse(localStorage.getItem('cb_orders')) || [];
-    recentOrders = allOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
+    recentOrders = allOrders.filter(o => o.created_at).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 5);
   } else {
     try {
       const { data, error } = await sb.from('cb_orders')
