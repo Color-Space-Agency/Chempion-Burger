@@ -4,11 +4,6 @@
 --  Jadvallar "cb_" prefiksli (boshqa loyiha ma'lumotiga aralashmaydi).
 -- ============================================================================
 
--- Mavjud jadvallarni yangilash uchun tezkor buyruqlar:
-alter table cb_orders add column if not exists payment_method text default 'naqd';
-alter table cb_orders add column if not exists customer_id bigint;
-alter table cb_products add column if not exists image_url text default '';
-
 -- ---------- Jadvallar ----------
 create table if not exists cb_categories (
   id          bigint primary key generated always as identity,
@@ -80,6 +75,11 @@ create table if not exists cb_recipes (
   quantity      numeric not null,
   constraint cb_recipes_uniq unique (product_id, ingredient_id)
 );
+
+-- ---------- Mavjud jadvallarni yangilash uchun tezkor buyruqlar ----------
+alter table cb_orders add column if not exists payment_method text default 'naqd';
+alter table cb_orders add column if not exists customer_id bigint;
+alter table cb_products add column if not exists image_url text default '';
 
 -- ---------- Constraints Yangilash ----------
 alter table cb_orders drop constraint if exists cb_orders_customer_id_fkey;
