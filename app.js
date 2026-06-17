@@ -223,6 +223,141 @@ function renderCategories() {
 let currentDetailQty = 1;
 let currentDetailProductId = null;
 
+const processedImagesCache = new Map();
+
+function makeImageBackgroundTransparent(imgUrl, callback) {
+  if (!imgUrl) {
+    callback(imgUrl);
+    return;
+  }
+  
+  if (processedImagesCache.has(imgUrl)) {
+    callback(processedImagesCache.get(imgUrl));
+    return;
+  }
+
+  // Check if it's already a data URL
+  if (imgUrl.startsWith('data:')) {
+    callback(imgUrl);
+    return;
+  }
+
+  const img = new Image();
+  img.crossOrigin = "anonymous";
+  img.onload = () => {
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+      const width = canvas.width;
+      const height = canvas.height;
+      
+      const corners = [
+        getPixel(data, 0, 0, width),
+        getPixel(data, width - 1, 0, width),
+        getPixel(data, 0, height - 1, width),
+        getPixel(data, width - 1, height - 1, width)
+      ];
+      
+      let whiteCount = 0;
+      let blackCount = 0;
+      corners.forEach(c => {
+        if (c.r > 200 && c.g > 200 && c.b > 200) whiteCount++;
+        if (c.r < 55 && c.g < 55 && c.b < 55) blackCount++;
+      });
+      
+      const isWhiteBg = whiteCount >= 2;
+      const isBlackBg = blackCount >= 2;
+      
+      if (isWhiteBg || isBlackBg) {
+        const visited = new Uint8Array(width * height);
+        const queue = [];
+        
+        const threshold = 65; // Tolerance for color matching
+        const bgR = isWhiteBg ? 255 : 0;
+        const bgG = isWhiteBg ? 255 : 0;
+        const bgB = isWhiteBg ? 255 : 0;
+
+        const pushPixel = (x, y) => {
+          const idx = y * width + x;
+          if (visited[idx]) return;
+          visited[idx] = 1;
+          
+          const offset = idx * 4;
+          const r = data[offset];
+          const g = data[offset + 1];
+          const b = data[offset + 2];
+          
+          const diff = Math.sqrt(
+            Math.pow(r - bgR, 2) + 
+            Math.pow(g - bgG, 2) + 
+            Math.pow(b - bgB, 2)
+          );
+          
+          if (diff < threshold) {
+            queue.push(idx);
+          }
+        };
+        
+        // Push borders
+        for (let x = 0; x < width; x++) {
+          pushPixel(x, 0);
+          pushPixel(x, height - 1);
+        }
+        for (let y = 0; y < height; y++) {
+          pushPixel(0, y);
+          pushPixel(width - 1, y);
+        }
+        
+        let head = 0;
+        while (head < queue.length) {
+          const idx = queue[head++];
+          const x = idx % width;
+          const y = Math.floor(idx / width);
+          
+          const offset = idx * 4;
+          data[offset + 3] = 0; // Make pixel transparent
+          
+          // Check neighbors
+          if (x > 0) pushPixel(x - 1, y);
+          if (x < width - 1) pushPixel(x + 1, y);
+          if (y > 0) pushPixel(x, y - 1);
+          if (y < height - 1) pushPixel(x, y + 1);
+        }
+        
+        ctx.putImageData(imgData, 0, 0);
+        const dataUrl = canvas.toDataURL('image/png');
+        processedImagesCache.set(imgUrl, dataUrl);
+        callback(dataUrl);
+      } else {
+        callback(imgUrl);
+      }
+    } catch (e) {
+      console.warn("Background removal failed, using original image:", e);
+      callback(imgUrl);
+    }
+  };
+  img.onerror = () => {
+    callback(imgUrl);
+  };
+  img.src = imgUrl;
+}
+
+function getPixel(data, x, y, width) {
+  const idx = (y * width + x) * 4;
+  return {
+    r: data[idx],
+    g: data[idx + 1],
+    b: data[idx + 2],
+    a: data[idx + 3]
+  };
+}
+
 function getProductWeightInfo(p) {
   // If the product has a weight/volume in the name, e.g. "110g" or "0.5l"
   const nameMatch = p.name.match(/\b(\d+(?:\.\d+)?\s*(?:g|g\.|gr|г|гр|ml|l|ml\.|л|мл|kg|кg))\b/i);
@@ -320,6 +455,18 @@ function renderProducts() {
   setupDragAndDrop();
   
   grid.querySelectorAll('.product-card').forEach(card => {
+    // Process image background removal
+    const id = Number(card.dataset.id);
+    const p = list.find(x => x.id === id);
+    if (p && p.image_url) {
+      const imgEl = card.querySelector('.p-img img');
+      if (imgEl) {
+        makeImageBackgroundTransparent(p.image_url, (url) => {
+          imgEl.src = url;
+        });
+      }
+    }
+
     card.onclick = (e) => {
       if (e.target.classList.contains('drag-handle') || e.target.closest('.card-qty-pill') || e.target.closest('.btn-card-add-round')) {
         return;
@@ -367,6 +514,13 @@ function openProductDetail(productId) {
   if (p.image_url) {
     imgEl.src = p.image_url;
     imgEl.style.display = 'block';
+    
+    // Process image background removal
+    makeImageBackgroundTransparent(p.image_url, (url) => {
+      if (currentDetailProductId === productId) {
+        imgEl.src = url;
+      }
+    });
   } else {
     imgEl.src = 'logo.png';
     imgEl.style.display = 'block';
