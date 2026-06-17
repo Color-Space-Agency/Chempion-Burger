@@ -2802,9 +2802,7 @@ renderCart();
 
 // --- Layout Selector & Responsive Simulator Logic ---
 function handleMobileLayoutSwitch() {
-  const isMobileSim = document.body.classList.contains('sim-mobile');
-  const isIpadSim = document.body.classList.contains('sim-ipad');
-  const isRealMobile = window.innerWidth <= 820;
+  const isMobile = window.innerWidth <= 820;
   
   const mobileNav = document.getElementById('mobile-nav');
   const floatingCart = document.getElementById('floating-cart-btn');
@@ -2814,7 +2812,7 @@ function handleMobileLayoutSwitch() {
   
   if (!mobileNav || !menuPanel || !cartPanel || !mainLayout) return;
 
-  if (isMobileSim || (isRealMobile && !isIpadSim && !document.body.classList.contains('sim-web'))) {
+  if (isMobile) {
     // Show Mobile Navigation Bar
     mobileNav.style.display = 'flex';
     mainLayout.classList.add('mobile-stacked');
@@ -2849,31 +2847,6 @@ function handleMobileLayoutSwitch() {
   }
 }
 
-// Bind layout simulator buttons
-document.querySelectorAll('.lay-btn').forEach(btn => {
-  btn.onclick = () => {
-    const layout = btn.dataset.layout;
-    document.querySelectorAll('.lay-btn').forEach(b => {
-      if (b.dataset.layout === layout) {
-        b.classList.add('active');
-      } else {
-        b.classList.remove('active');
-      }
-    });
-    
-    document.body.classList.remove('sim-web', 'sim-ipad', 'sim-mobile');
-    
-    if (layout === 'ipad') {
-      document.body.classList.add('sim-ipad');
-    } else if (layout === 'mobile') {
-      document.body.classList.add('sim-mobile');
-    } else {
-      document.body.classList.add('sim-web');
-    }
-    
-    handleMobileLayoutSwitch();
-  };
-});
 
 // Bind theme toggle button
 const themeToggleBtn = document.getElementById('theme-toggle');

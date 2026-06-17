@@ -2019,48 +2019,7 @@ body.light-theme .drag-handle {
   box-sizing: border-box;
 }
 
-/* Simulator Frame Styles */
-body.sim-ipad {
-  background: #0d0a07 !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 1rem 0;
-}
-body.sim-ipad .app-container {
-  width: 768px;
-  height: 1024px;
-  max-width: 95vw;
-  max-height: 95vh;
-  border: 14px solid #1a1613;
-  border-radius: 36px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 159, 10, 0.1);
-  background: var(--bg);
-  overflow: hidden;
-  position: relative;
-}
-
-body.sim-mobile {
-  background: #0d0a07 !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 1rem 0;
-}
-body.sim-mobile .app-container {
-  width: 390px;
-  height: 844px;
-  max-width: 95vw;
-  max-height: 95vh;
-  border: 14px solid #1a1613;
-  border-radius: 40px;
-  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 159, 10, 0.1);
-  background: var(--bg);
-  overflow: hidden;
-  position: relative;
-}
+/* Simulator Frame Styles - Removed per request */
 
 /* Card Quantity Controls */
 .p-footer {
@@ -2128,7 +2087,7 @@ body.sim-mobile .app-container {
 
 /* Mobile Nav Bar Styles */
 .mobile-nav {
-  position: absolute;
+  position: fixed;
   bottom: 0;
   left: 0;
   width: 100%;
@@ -2142,10 +2101,6 @@ body.sim-mobile .app-container {
   align-items: center;
   z-index: 100;
   box-shadow: 0 -5px 25px rgba(0,0,0,0.3);
-}
-/* If it is real device layout (no sim body), make position fixed */
-body:not(.sim-ipad):not(.sim-mobile) .mobile-nav {
-  position: fixed;
 }
 .mnav-btn {
   flex: 1;
@@ -2181,7 +2136,7 @@ body:not(.sim-ipad):not(.sim-mobile) .mobile-nav {
 
 /* Floating Cart Button Styles */
 .floating-cart-btn {
-  position: absolute;
+  position: fixed;
   bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
@@ -2200,9 +2155,6 @@ body:not(.sim-ipad):not(.sim-mobile) .mobile-nav {
   cursor: pointer;
   z-index: 99;
   transition: var(--transition);
-}
-body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
-  position: fixed;
 }
 .floating-cart-btn:hover {
   transform: translateX(-50%) translateY(-2px);
