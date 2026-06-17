@@ -12,7 +12,7 @@
   --border-glass-focus: rgba(245, 166, 35, 0.45);
   
   --primary: #F5A623; /* Brandbook Golden/Yellow */
-  --primary-gradient: linear-gradient(135deg, #F5A623 0%, #D62828 100%); /* Gold to Red gradient */
+  --primary-gradient: #F5A623; /* Solid Gold/Yellow */
   --primary-glow: rgba(245, 166, 35, 0.25);
   
   --accent: #D62828; /* Brandbook Red */
@@ -40,7 +40,7 @@ body.light-theme {
   --border-glass-focus: rgba(245, 166, 35, 0.65);
   
   --primary: #c27800; /* Darker gold for contrast */
-  --primary-gradient: linear-gradient(135deg, #e08e00 0%, #b81d1d 100%);
+  --primary-gradient: #c27800; /* Solid Gold/Amber */
   --primary-glow: rgba(245, 166, 35, 0.15);
   
   --accent: #b81d1d;
@@ -1113,7 +1113,7 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   box-shadow: 0 0 10px var(--primary-glow);
 }
 .demo-banner {
-  background: linear-gradient(90deg, #F5A623 0%, #D62828 100%);
+  background: var(--primary);
   color: #000000;
   text-align: center;
   padding: 0.35rem;
@@ -1240,8 +1240,8 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   color: var(--accent);
 }
 .loyalty-bonus-alert {
-  background: linear-gradient(135deg, rgba(245, 166, 35, 0.2) 0%, rgba(214, 40, 40, 0.2) 100%);
-  border: 1px solid rgba(245, 166, 35, 0.3);
+  background: rgba(245, 166, 35, 0.08);
+  border: 1px solid rgba(245, 166, 35, 0.2);
   padding: 0.45rem 0.8rem;
   border-radius: 10px;
   margin-top: 0.4rem;
