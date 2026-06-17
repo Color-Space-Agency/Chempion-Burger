@@ -3,6 +3,16 @@
 //  Vercel'da statik sayt; ma'lumot Supabase'da (cb_ prefiksli jadvallar).
 // ============================================================
 
+// --- Theme initialization ---
+(function() {
+  const savedTheme = localStorage.getItem('cb_theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+  } else {
+    document.body.classList.remove('light-theme');
+  }
+})();
+
 // --- Supabase ulanish ---
 const SUPABASE_URL = localStorage.getItem('cb_supabase_url') || "https://edeytlewvillfeokdics.supabase.co";
 const keyPart1 = "sb_publishable_";
@@ -2441,6 +2451,25 @@ document.querySelectorAll('.lay-btn').forEach(btn => {
     handleMobileLayoutSwitch();
   };
 });
+
+// Bind theme toggle button
+const themeToggleBtn = document.getElementById('theme-toggle');
+if (themeToggleBtn) {
+  const currentTheme = localStorage.getItem('cb_theme') || 'dark';
+  themeToggleBtn.innerText = currentTheme === 'light' ? '☀️' : '🌙';
+  
+  themeToggleBtn.onclick = () => {
+    if (document.body.classList.contains('light-theme')) {
+      document.body.classList.remove('light-theme');
+      themeToggleBtn.innerText = '🌙';
+      localStorage.setItem('cb_theme', 'dark');
+    } else {
+      document.body.classList.add('light-theme');
+      themeToggleBtn.innerText = '☀️';
+      localStorage.setItem('cb_theme', 'light');
+    }
+  };
+}
 
 // Bind mobile navigation tabs
 document.getElementById('mnav-menu').onclick = () => {
