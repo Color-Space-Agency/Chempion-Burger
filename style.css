@@ -15,8 +15,8 @@
   --primary-gradient: #F5A623; /* Solid Gold/Yellow */
   --primary-glow: rgba(245, 166, 35, 0.25);
   
-  --accent: #D62828; /* Brandbook Red */
-  --accent-glow: rgba(214, 40, 40, 0.2);
+  --accent: #ff4d4d; /* 15% Lighter Red */
+  --accent-glow: rgba(255, 77, 77, 0.25);
   
   --text: #ffffff;
   --muted: #c8bab3; /* Brandbook Warm Grey */
@@ -43,7 +43,7 @@ body.light-theme {
   --primary-gradient: #c27800; /* Solid Gold/Amber */
   --primary-glow: rgba(245, 166, 35, 0.15);
   
-  --accent: #b81d1d;
+  --accent: #e53e3e; /* 15% Lighter Red for light theme */
   --accent-glow: rgba(184, 29, 29, 0.15);
   
   --text: #1c130e; /* Dark brown/black text */
