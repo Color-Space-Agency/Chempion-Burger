@@ -41,9 +41,31 @@ const state = {
 const fmt = n => Math.round(n || 0).toLocaleString('uz-UZ') + " so'm";
 const TYPE_LABEL = { dine_in: 'Zal', takeout: 'Olib ketish', delivery: 'Yetkazib berish' };
 
-function genOrderNumber() {
-  const d = new Date(); const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+async function getNextOrderNumber() {
+  if (state.isDemoMode) {
+    const orders = JSON.parse(localStorage.getItem('cb_orders')) || [];
+    if (orders.length === 0) return "1";
+    const nums = orders.map(o => parseInt(o.order_number) || 0);
+    const maxNum = Math.max(...nums, 0);
+    return String(maxNum + 1);
+  } else {
+    try {
+      const { data, error } = await sb.from('cb_orders')
+        .select('order_number')
+        .order('id', { ascending: false })
+        .limit(1);
+      
+      if (error || !data || data.length === 0) {
+        return "1";
+      }
+      
+      const lastNum = parseInt(data[0].order_number) || 0;
+      return String(lastNum + 1);
+    } catch (err) {
+      console.error("getNextOrderNumber xatosi:", err);
+      return "1";
+    }
+  }
 }
 
 // ---------- Offline Demo rejimini yoqish ----------
@@ -456,7 +478,7 @@ document.getElementById('btn-confirm').onclick = async () => {
 
       } else {
         // --- YANGI BUYURTMA YARATISH ---
-        const orderNumber = genOrderNumber();
+        const orderNumber = await getNextOrderNumber();
         const newOrder = {
           id: Date.now(),
           order_number: orderNumber,
@@ -594,7 +616,7 @@ document.getElementById('btn-confirm').onclick = async () => {
 
     } else {
       // --- YANGI BUYURTMA YARATISH ---
-      const orderNumber = genOrderNumber();
+      const orderNumber = await getNextOrderNumber();
       const { data: oData, error } = await sb.from('cb_orders').insert({
         order_number: orderNumber,
         type: state.orderType,
