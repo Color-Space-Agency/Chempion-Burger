@@ -326,29 +326,63 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
 /* Menu Panel */
 .menu-panel {
   padding: 1.2rem;
-  overflow-y: auto;
   background: transparent;
+  display: flex;
+  flex-direction: row;
+  gap: 1.5rem;
+  height: 100%;
+  overflow: hidden;
 }
 .cat-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.2rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: 220px;
+  height: 100%;
+  overflow-y: auto;
+  flex-shrink: 0;
+  margin-bottom: 0;
+  padding-right: 0.4rem;
 }
+.cat-tabs::-webkit-scrollbar,
+.product-grid::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.cat-tabs::-webkit-scrollbar-track,
+.product-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+.cat-tabs::-webkit-scrollbar-thumb,
+.product-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 159, 10, 0.15);
+  border-radius: 3px;
+}
+.cat-tabs::-webkit-scrollbar-thumb:hover,
+.product-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 159, 10, 0.3);
+}
+
 .cat-tab {
-  padding: 0.55rem 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem 1.2rem;
   border: 1px solid var(--border-glass);
   background: var(--surface);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   color: var(--muted);
-  border-radius: 30px;
+  border-radius: 12px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.95rem;
   white-space: nowrap;
   transition: var(--transition);
   box-shadow: var(--card-shadow);
+  text-align: left;
+  justify-content: flex-start;
 }
 .cat-tab:hover {
   border-color: rgba(255, 159, 10, 0.3);
@@ -364,9 +398,14 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
 }
 
 .product-grid {
+  flex: 1;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 0.9rem;
+  overflow-y: auto;
+  height: 100%;
+  padding-bottom: 2rem;
+  padding-right: 0.4rem;
 }
 .product-card {
   background: var(--surface);
@@ -2171,11 +2210,17 @@ body.light-theme .drag-handle {
   height: calc(100% - 63px - 60px) !important; /* height minus topbar and mobile nav */
   padding-bottom: 0;
 }
-.layout.mobile-stacked .menu-panel, 
+.layout.mobile-stacked .menu-panel {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
 .layout.mobile-stacked .cart-panel {
   height: 100% !important;
   max-height: 100% !important;
-  overflow-y: auto;
+  overflow-y: auto !important;
 }
 
 /* Hide back buttons on desktop */
@@ -2192,20 +2237,30 @@ body.light-theme .drag-handle {
   .cat-tabs {
     flex-wrap: nowrap !important;
     overflow-x: auto !important;
+    overflow-y: hidden !important;
     padding-top: 0.2rem !important;
     padding-bottom: 0.4rem !important;
-    margin-bottom: 0.6rem !important;
+    margin-bottom: 0.4rem !important;
     gap: 0.4rem !important;
     scrollbar-width: none; /* Hide scrollbars */
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    height: auto !important;
+    flex-shrink: 0 !important;
   }
   .cat-tabs::-webkit-scrollbar {
-    display: none;
+    display: none !important;
   }
   .cat-tab {
     flex-shrink: 0 !important;
     padding: 0.45rem 0.9rem !important;
     font-size: 0.82rem !important;
     border-radius: 12px !important;
+    width: auto !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    align-items: center !important;
   }
   
   /* Compact Product Grid & Card styles on mobile */
@@ -2213,6 +2268,8 @@ body.light-theme .drag-handle {
     grid-template-columns: repeat(2, 1fr) !important;
     gap: 0.5rem !important;
     padding: 0.1rem !important;
+    overflow-y: auto !important;
+    flex: 1 !important;
   }
   .product-card {
     padding: 0.5rem !important;
@@ -2278,10 +2335,19 @@ body.light-theme .drag-handle {
     padding-bottom: 0 !important;
   }
   
-  .menu-panel, .cart-panel {
+  .menu-panel {
     height: 100% !important;
     max-height: 100% !important;
     padding: 0.6rem !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+  .cart-panel {
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 0.6rem !important;
+    overflow-y: auto !important;
   }
 
   /* Make sure top bar scales nicely and doesn't wrap */

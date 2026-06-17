@@ -2160,11 +2160,16 @@ document.getElementById('btn-save-recipe-item').onclick = saveRecipeItem;
 document.getElementById('open-customers').onclick = () => {
   closeAllModals();
   document.getElementById('customers-modal').classList.add('open');
+  document.getElementById('new-cust-name').value = '';
+  document.getElementById('new-cust-phone').value = '';
+  document.getElementById('search-cust-input').value = '';
   loadCustomers();
 };
 document.getElementById('customers-close').onclick = () => {
   document.getElementById('customers-modal').classList.remove('open');
 };
+document.getElementById('btn-add-customer').onclick = addCustomer;
+document.getElementById('search-cust-input').oninput = renderCustomersList;
 
 document.getElementById('open-menu-edit').onclick = () => {
   closeAllModals();
