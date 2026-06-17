@@ -2645,8 +2645,8 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
   height: 140px;
   border-radius: 14px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: transparent !important;
+  border: none !important;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2654,8 +2654,8 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
 }
 
 body.light-theme .product-card .p-img {
-  background: rgba(74, 31, 15, 0.03);
-  border-color: rgba(74, 31, 15, 0.02);
+  background: transparent !important;
+  border-color: transparent !important;
 }
 
 .product-card .p-img img {
@@ -2793,12 +2793,12 @@ body.light-theme .card-qty-pill {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.02);
+  background: transparent !important;
   padding: 1rem 0;
 }
 
 body.light-theme .pd-image-wrapper {
-  background: rgba(74, 31, 15, 0.01);
+  background: transparent !important;
 }
 
 .pd-image-wrapper img {
