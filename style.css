@@ -2201,6 +2201,37 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
   transform: translateY(0);
 }
 
+/* Profile User Badge Layout Selector - responsive behavior */
+.profile-layout-selector {
+  display: none !important;
+}
+
+@media (max-width: 820px) {
+  .user-badge .profile-layout-selector {
+    display: flex !important;
+    gap: 0.15rem;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 0.15rem;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 159, 10, 0.15);
+    margin-left: 0.4rem;
+    margin-right: 0.4rem;
+    align-items: center;
+  }
+  
+  .user-badge .profile-layout-selector .lay-btn {
+    padding: 0.25rem 0.4rem;
+    font-size: 0.75rem;
+    border-radius: 6px;
+  }
+  
+  /* Hide text labels on mobile/small screens inside profile badge to save space */
+  .user-badge .profile-layout-selector .lay-btn .lay-text {
+    display: none !important;
+  }
+}
+
+
 
 
 

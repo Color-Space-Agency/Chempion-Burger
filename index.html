@@ -24,9 +24,9 @@
     </div>
     
     <div class="layout-selector" id="layout-selector">
-      <button class="lay-btn active" data-layout="web">💻 Web</button>
-      <button class="lay-btn" data-layout="ipad">📟 iPad</button>
-      <button class="lay-btn" data-layout="mobile">📱 Mobil</button>
+      <button class="lay-btn active" data-layout="web">💻<span class="lay-text"> Web</span></button>
+      <button class="lay-btn" data-layout="ipad">📟<span class="lay-text"> iPad</span></button>
+      <button class="lay-btn" data-layout="mobile">📱<span class="lay-text"> Mobil</span></button>
     </div>
     
     <div class="topbar-actions">
@@ -39,6 +39,11 @@
       <div class="user-badge" id="user-badge" style="display: none;">
         <span class="user-icon">👤</span>
         <span class="user-name" id="user-role-label">Sotuvchi</span>
+        <div class="layout-selector profile-layout-selector">
+          <button class="lay-btn active" data-layout="web" title="Web">💻<span class="lay-text"> Web</span></button>
+          <button class="lay-btn" data-layout="ipad" title="iPad">📟<span class="lay-text"> iPad</span></button>
+          <button class="lay-btn" data-layout="mobile" title="Mobil">📱<span class="lay-text"> Mobil</span></button>
+        </div>
         <button class="btn-logout" id="btn-logout" title="Chiqish">🚪</button>
       </div>
     </div>
