@@ -264,24 +264,26 @@ function makeImageBackgroundTransparent(imgUrl, callback) {
         getPixel(data, width - 1, height - 1, width)
       ];
       
-      let whiteCount = 0;
-      let blackCount = 0;
+      // Calculate average corner color to get the background color key
+      let sumR = 0, sumG = 0, sumB = 0;
       corners.forEach(c => {
-        if (c.r > 200 && c.g > 200 && c.b > 200) whiteCount++;
-        if (c.r < 55 && c.g < 55 && c.b < 55) blackCount++;
+        sumR += c.r;
+        sumG += c.g;
+        sumB += c.b;
       });
+      const bgR = Math.round(sumR / 4);
+      const bgG = Math.round(sumG / 4);
+      const bgB = Math.round(sumB / 4);
       
-      const isWhiteBg = whiteCount >= 2;
-      const isBlackBg = blackCount >= 2;
+      // Check if it's a solid white/light or black/dark background
+      const isWhiteBg = bgR > 180 && bgG > 180 && bgB > 180;
+      const isBlackBg = bgR < 75 && bgG < 75 && bgB < 75;
       
       if (isWhiteBg || isBlackBg) {
         const visited = new Uint8Array(width * height);
         const queue = [];
         
-        const threshold = 65; // Tolerance for color matching
-        const bgR = isWhiteBg ? 255 : 0;
-        const bgG = isWhiteBg ? 255 : 0;
-        const bgB = isWhiteBg ? 255 : 0;
+        const threshold = 85; // Tolerance for color difference
 
         const pushPixel = (x, y) => {
           const idx = y * width + x;
@@ -345,7 +347,8 @@ function makeImageBackgroundTransparent(imgUrl, callback) {
   img.onerror = () => {
     callback(imgUrl);
   };
-  img.src = imgUrl;
+  // Add a cache buster query parameter to bypass the browser cached headers issue
+  img.src = imgUrl + (imgUrl.includes('?') ? '&' : '?') + 'c=' + Date.now();
 }
 
 function getPixel(data, x, y, width) {
@@ -359,47 +362,7 @@ function getPixel(data, x, y, width) {
 }
 
 function getProductWeightInfo(p) {
-  // If the product has a weight/volume in the name, e.g. "110g" or "0.5l"
-  const nameMatch = p.name.match(/\b(\d+(?:\.\d+)?\s*(?:g|g\.|gr|г|гр|ml|l|ml\.|л|мл|kg|кg))\b/i);
-  if (nameMatch) {
-    return nameMatch[1];
-  }
-  // Try description
-  const descMatch = p.description ? p.description.match(/\b(\d+(?:\.\d+)?\s*(?:g|g\.|gr|г|гр|ml|l|ml\.|л|мл|kg|кg))\b/i) : null;
-  if (descMatch) {
-    return descMatch[1];
-  }
-  
-  // Default values for standard items
-  const nameLower = p.name.toLowerCase();
-  if (nameLower.includes('ghamburger')) return '250 g';
-  if (nameLower.includes('cheeseburger')) return '270 g';
-  if (nameLower.includes('bigburger sirli')) return '400 g';
-  if (nameLower.includes('bigburger')) return '380 g';
-  if (nameLower.includes('kfc burger')) return '230 g';
-  if (nameLower.includes('non kabob')) return '350 g';
-  if (nameLower.includes('non chicken')) return '310 g';
-  if (nameLower.includes('non donar')) return '340 g';
-  if (nameLower.includes('canadskiy 2x')) return '310 g';
-  if (nameLower.includes('canadskiy')) return '220 g';
-  if (nameLower.includes('oddiy 2x')) return '260 g';
-  if (nameLower.includes('oddiy')) return '180 g';
-  if (nameLower.includes('go\'shtli hot-dog')) return '280 g';
-  if (nameLower.includes('big hot-dog')) return '450 g';
-  if (nameLower.includes('kabob hot-dog')) return '320 g';
-  if (nameLower.includes('longer')) return '190 g';
-  if (nameLower.includes('set 1')) return '550 g';
-  if (nameLower.includes('set 2')) return '650 g';
-  if (nameLower.includes('set 3')) return '580 g';
-  if (nameLower.includes('set 4')) return '530 g';
-  if (nameLower.includes('pepsi')) return '0.5 l';
-  if (nameLower.includes('coca-cola')) return '0.5 l';
-  if (nameLower.includes('fanta')) return '0.5 l';
-  if (nameLower.includes('suv')) return '0.5 l';
-  if (nameLower.includes('ketchup')) return '25 g';
-  if (nameLower.includes('mayonez')) return '25 g';
-  if (nameLower.includes('fri kartoshka')) return '110 g';
-  
+  // Grams/weight representation disabled per request
   return '';
 }
 
@@ -528,9 +491,7 @@ function openProductDetail(productId) {
   
   document.getElementById('pd-title').textContent = p.name;
   
-  const weight = getProductWeightInfo(p);
-  const weightStr = weight ? ` • ${weight}` : '';
-  document.getElementById('pd-price').textContent = `${fmt(p.price)}${weightStr}`;
+  document.getElementById('pd-price').textContent = `${fmt(p.price)}`;
   
   // Format description
   const descEl = document.getElementById('pd-desc');
@@ -1862,9 +1823,16 @@ function setupImageHandlers() {
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        currentBase64Image = canvas.toDataURL('image/jpeg', 0.75);
+        const exportType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+        if (exportType === 'image/jpeg') {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          currentBase64Image = canvas.toDataURL('image/jpeg', 0.75);
+        } else {
+          ctx.drawImage(img, 0, 0, width, height);
+          currentBase64Image = canvas.toDataURL('image/png');
+        }
         previewImg.src = currentBase64Image;
         imgPreviewBox.style.display = 'block';
         imgUrlInput.value = '';
