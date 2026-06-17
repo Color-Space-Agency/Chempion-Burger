@@ -2100,8 +2100,8 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
 
 /* Real mobile responsiveness adjustments */
 @media (max-width: 820px) {
-  .layout-selector {
-    display: none !important; /* Hide device simulator on real small screens */
+  #layout-selector {
+    display: none !important; /* Hide header simulator on real small screens */
   }
   
   .cat-tabs {

@@ -2419,10 +2419,15 @@ function handleMobileLayoutSwitch() {
 // Bind layout simulator buttons
 document.querySelectorAll('.lay-btn').forEach(btn => {
   btn.onclick = () => {
-    document.querySelectorAll('.lay-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    
     const layout = btn.dataset.layout;
+    document.querySelectorAll('.lay-btn').forEach(b => {
+      if (b.dataset.layout === layout) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    
     document.body.classList.remove('sim-web', 'sim-ipad', 'sim-mobile');
     
     if (layout === 'ipad') {
