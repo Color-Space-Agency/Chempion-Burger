@@ -2582,3 +2582,13 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
   }
 }
 
+/* Category row dragging styles */
+.category-row.dragging {
+  opacity: 0.45;
+  background: rgba(245, 166, 35, 0.08) !important;
+  border: 1px dashed var(--primary) !important;
+}
+.category-drag-handle:active {
+  cursor: grabbing !important;
+}
+

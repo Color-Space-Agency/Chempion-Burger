@@ -1453,20 +1453,23 @@ function renderMenuCategoriesTable() {
   if (!tbody) return;
   
   if (state.categories.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:1rem;">Kategoriyalar yo'q</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:1rem;">Kategoriyalar yo'q</td></tr>`;
     return;
   }
   
   tbody.innerHTML = state.categories.map(c => `
-    <tr>
+    <tr class="category-row" data-id="${c.id}">
+      <td class="category-drag-handle" style="cursor: grab; text-align: center; color: var(--muted); font-size: 1.15rem; width: 45px; user-select: none;">☰</td>
       <td style="font-size:1.3rem; text-align:center;">${c.icon || ''}</td>
       <td><b>${c.name}</b></td>
-      <td>${c.sort_order}</td>
+      <td class="cat-sort-order-val">${c.sort_order}</td>
       <td>
         <button class="btn-inline-del" onclick="deleteCategory(${c.id})">❌</button>
       </td>
     </tr>
   `).join('');
+  
+  setupCategoryDragAndDrop();
 }
 
 let currentBase64Image = "";
@@ -1943,6 +1946,86 @@ async function saveNewProductOrder() {
     await Promise.all(promises);
   } catch (err) {
     console.error("Tartibni saqlashda xatolik:", err);
+  }
+}
+
+// Category Drag and Drop Management
+let draggedCategoryRow = null;
+
+function setupCategoryDragAndDrop() {
+  const tbody = document.getElementById('menu-categories-body');
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll('.category-row');
+  rows.forEach(row => {
+    row.setAttribute('draggable', 'true');
+    
+    row.addEventListener('dragstart', (e) => {
+      draggedCategoryRow = row;
+      row.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    
+    row.addEventListener('dragend', async () => {
+      row.classList.remove('dragging');
+      draggedCategoryRow = null;
+      await saveNewCategoryOrder();
+    });
+    
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (!draggedCategoryRow || draggedCategoryRow === row) return;
+      
+      const rect = row.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const insertAfter = e.clientY > midY;
+      
+      tbody.insertBefore(draggedCategoryRow, insertAfter ? row.nextSibling : row);
+    });
+  });
+}
+
+async function saveNewCategoryOrder() {
+  const tbody = document.getElementById('menu-categories-body');
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll('.category-row');
+  const newOrderIds = Array.from(rows).map(row => Number(row.dataset.id));
+  
+  newOrderIds.forEach((id, index) => {
+    const c = state.categories.find(x => x.id === id);
+    if (c) c.sort_order = index + 1;
+  });
+  
+  // State tartibini yangilash
+  state.categories.sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0) || a.id - b.id);
+  
+  // Jadvaldagi tartib raqamlarini ham real-vaqtda yangilash
+  rows.forEach((row, index) => {
+    const valTd = row.querySelector('.cat-sort-order-val');
+    if (valTd) valTd.innerText = index + 1;
+  });
+  
+  // Asosiy sahifadagi kategoriya tablarini yangilash
+  renderCategories();
+  
+  if (state.isDemoMode) {
+    const cats = JSON.parse(localStorage.getItem('cb_categories')) || [];
+    newOrderIds.forEach((id, index) => {
+      const c = cats.find(x => x.id === id);
+      if (c) c.sort_order = index + 1;
+    });
+    localStorage.setItem('cb_categories', JSON.stringify(cats));
+    return;
+  }
+  
+  try {
+    const promises = newOrderIds.map((id, index) => 
+      sb.from('cb_categories').update({ sort_order: index + 1 }).eq('id', id)
+    );
+    await Promise.all(promises);
+  } catch (err) {
+    console.error("Kategoriya tartibini saqlashda xatolik:", err);
   }
 }
 
