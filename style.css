@@ -406,6 +406,7 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   height: 100%;
   padding-bottom: 2rem;
   padding-right: 0.4rem;
+  align-content: start;
 }
 .product-card {
   background: var(--surface);
@@ -420,7 +421,6 @@ h1, h2, h3, h4, h5, h6, .brand, .otype, .cat-tab, .btn-confirm, .btn-clear, .btn
   box-shadow: var(--glass-shadow);
   display: flex;
   flex-direction: column;
-  height: 100%;
 }
 .product-card:hover {
   border-color: var(--primary);
@@ -2270,6 +2270,7 @@ body.light-theme .drag-handle {
     padding: 0.1rem !important;
     overflow-y: auto !important;
     flex: 1 !important;
+    align-content: start !important;
   }
   .product-card {
     padding: 0.5rem !important;
