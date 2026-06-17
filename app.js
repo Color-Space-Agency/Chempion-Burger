@@ -220,6 +220,54 @@ function renderCategories() {
   });
 }
 
+let currentDetailQty = 1;
+let currentDetailProductId = null;
+
+function getProductWeightInfo(p) {
+  // If the product has a weight/volume in the name, e.g. "110g" or "0.5l"
+  const nameMatch = p.name.match(/\b(\d+(?:\.\d+)?\s*(?:g|g\.|gr|г|гр|ml|l|ml\.|л|мл|kg|кg))\b/i);
+  if (nameMatch) {
+    return nameMatch[1];
+  }
+  // Try description
+  const descMatch = p.description ? p.description.match(/\b(\d+(?:\.\d+)?\s*(?:g|g\.|gr|г|гр|ml|l|ml\.|л|мл|kg|кg))\b/i) : null;
+  if (descMatch) {
+    return descMatch[1];
+  }
+  
+  // Default values for standard items
+  const nameLower = p.name.toLowerCase();
+  if (nameLower.includes('ghamburger')) return '250 g';
+  if (nameLower.includes('cheeseburger')) return '270 g';
+  if (nameLower.includes('bigburger sirli')) return '400 g';
+  if (nameLower.includes('bigburger')) return '380 g';
+  if (nameLower.includes('kfc burger')) return '230 g';
+  if (nameLower.includes('non kabob')) return '350 g';
+  if (nameLower.includes('non chicken')) return '310 g';
+  if (nameLower.includes('non donar')) return '340 g';
+  if (nameLower.includes('canadskiy 2x')) return '310 g';
+  if (nameLower.includes('canadskiy')) return '220 g';
+  if (nameLower.includes('oddiy 2x')) return '260 g';
+  if (nameLower.includes('oddiy')) return '180 g';
+  if (nameLower.includes('go\'shtli hot-dog')) return '280 g';
+  if (nameLower.includes('big hot-dog')) return '450 g';
+  if (nameLower.includes('kabob hot-dog')) return '320 g';
+  if (nameLower.includes('longer')) return '190 g';
+  if (nameLower.includes('set 1')) return '550 g';
+  if (nameLower.includes('set 2')) return '650 g';
+  if (nameLower.includes('set 3')) return '580 g';
+  if (nameLower.includes('set 4')) return '530 g';
+  if (nameLower.includes('pepsi')) return '0.5 l';
+  if (nameLower.includes('coca-cola')) return '0.5 l';
+  if (nameLower.includes('fanta')) return '0.5 l';
+  if (nameLower.includes('suv')) return '0.5 l';
+  if (nameLower.includes('ketchup')) return '25 g';
+  if (nameLower.includes('mayonez')) return '25 g';
+  if (nameLower.includes('fri kartoshka')) return '110 g';
+  
+  return '';
+}
+
 function renderProducts() {
   const grid = document.getElementById('product-grid');
   const list = state.activeCategory === 'all'
@@ -227,34 +275,44 @@ function renderProducts() {
     : state.products.filter(p => p.category_id === state.activeCategory);
   
   grid.innerHTML = list.map(p => {
-    const imgHtml = p.image_url ? `<div class="p-img"><img src="${p.image_url}" alt="${p.name}"></div>` : '';
-    const descHtml = p.description 
-      ? p.description.includes(',')
-        ? p.description.split(',').map(item => `• ${item.trim()}`).join('<br>')
-        : p.description
-      : '';
-
+    const imgHtml = p.image_url 
+      ? `<div class="p-img"><img src="${p.image_url}" alt="${p.name}"></div>` 
+      : `<div class="p-img"><img src="logo.png" alt="${p.name}" style="object-fit: contain; padding: 10px;"></div>`;
+    
     // Savatda borligini tekshirish
     const cartItem = state.cart.find(item => item.product_id === p.id);
-    const qtySelectorHtml = cartItem 
-      ? `
-        <div class="card-qty-control" onclick="event.stopPropagation();">
-          <button class="btn-card-qty" data-id="${p.id}" data-action="minus">−</button>
-          <span class="card-qty-val">${cartItem.qty}</span>
-          <button class="btn-card-qty" data-id="${p.id}" data-action="plus">+</button>
+    
+    let actionOverlayHtml = '';
+    if (cartItem) {
+      actionOverlayHtml = `
+        <div class="card-qty-pill" onclick="event.stopPropagation();">
+          <button class="btn-card-qty-pill-minus" data-id="${p.id}">−</button>
+          <span class="card-qty-pill-val">${cartItem.qty}</span>
+          <button class="btn-card-qty-pill-plus" data-id="${p.id}">+</button>
         </div>
-      `
-      : `<div class="card-add-badge">+ Qo'shish</div>`;
+      `;
+    } else {
+      actionOverlayHtml = `
+        <button class="btn-card-add-round" data-id="${p.id}" onclick="event.stopPropagation();">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+      `;
+    }
+
+    const weight = getProductWeightInfo(p);
+    const weightHtml = weight ? `<div class="p-weight">${weight}</div>` : '';
 
     return `
       <div class="product-card" data-id="${p.id}">
         <div class="drag-handle" title="Tartibni o'zgartirish">☰</div>
-        ${imgHtml}
-        <div class="p-name">${p.name}</div>
-        <div class="p-desc">${descHtml}</div>
-        <div class="p-footer">
+        <div class="p-img-wrapper">
+          ${imgHtml}
+          ${actionOverlayHtml}
+        </div>
+        <div class="p-details">
           <div class="p-price">${fmt(p.price)}</div>
-          ${qtySelectorHtml}
+          <div class="p-name">${p.name}</div>
+          ${weightHtml}
         </div>
       </div>`;
   }).join('') || `<div style="color:var(--muted);padding:2rem;">Bu bo'limda mahsulot yo'q.</div>`;
@@ -263,27 +321,165 @@ function renderProducts() {
   
   grid.querySelectorAll('.product-card').forEach(card => {
     card.onclick = (e) => {
-      if (e.target.classList.contains('drag-handle') || e.target.closest('.card-qty-control')) {
+      if (e.target.classList.contains('drag-handle') || e.target.closest('.card-qty-pill') || e.target.closest('.btn-card-add-round')) {
         return;
       }
-      addToCart(Number(card.dataset.id));
+      openProductDetail(Number(card.dataset.id));
     };
   });
 
-  // Card qty plus/minus click handlers
-  grid.querySelectorAll('.btn-card-qty').forEach(btn => {
+  // Card qty plus/minus click handlers for pill
+  grid.querySelectorAll('.btn-card-qty-pill-plus').forEach(btn => {
     btn.onclick = (e) => {
       e.stopPropagation();
       const id = Number(btn.dataset.id);
-      const action = btn.dataset.action;
-      if (action === 'plus') {
-        changeQty(id, 1);
-      } else if (action === 'minus') {
-        changeQty(id, -1);
-      }
+      changeQty(id, 1);
+    };
+  });
+  grid.querySelectorAll('.btn-card-qty-pill-minus').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      changeQty(id, -1);
+    };
+  });
+  
+  // Floating plus button click handler
+  grid.querySelectorAll('.btn-card-add-round').forEach(btn => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const id = Number(btn.dataset.id);
+      addToCart(id);
     };
   });
 }
+
+function openProductDetail(productId) {
+  currentDetailProductId = productId;
+  const p = state.products.find(x => x.id === productId);
+  if (!p) return;
+  
+  const cartItem = state.cart.find(item => item.product_id === productId);
+  currentDetailQty = cartItem ? cartItem.qty : 1;
+  
+  // Update elements in modal
+  const imgEl = document.getElementById('pd-image');
+  if (p.image_url) {
+    imgEl.src = p.image_url;
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.src = 'logo.png';
+    imgEl.style.display = 'block';
+  }
+  
+  document.getElementById('pd-title').textContent = p.name;
+  
+  const weight = getProductWeightInfo(p);
+  const weightStr = weight ? ` • ${weight}` : '';
+  document.getElementById('pd-price').textContent = `${fmt(p.price)}${weightStr}`;
+  
+  // Format description
+  const descEl = document.getElementById('pd-desc');
+  if (p.description) {
+    descEl.textContent = p.description;
+  } else {
+    descEl.textContent = "Tarkibi haqida ma'lumot berilmagan.";
+  }
+  
+  // Update qty value
+  document.getElementById('pd-qty-value').textContent = currentDetailQty;
+  
+  // Action button text
+  const actionBtn = document.getElementById('pd-action-btn');
+  if (cartItem) {
+    actionBtn.textContent = "O'chirish";
+    actionBtn.classList.add('btn-delete');
+  } else {
+    actionBtn.textContent = "Savatga qo'shish";
+    actionBtn.classList.remove('btn-delete');
+  }
+  
+  // Open modal
+  closeAllModals();
+  document.getElementById('product-detail-modal').classList.add('open');
+}
+
+// Bind Product Detail Modal Close/Back Button
+const pdCloseBtn = document.getElementById('product-detail-close');
+if (pdCloseBtn) {
+  pdCloseBtn.onclick = () => {
+    document.getElementById('product-detail-modal').classList.remove('open');
+  };
+}
+
+const pdBackBtn = document.getElementById('product-detail-back');
+if (pdBackBtn) {
+  pdBackBtn.onclick = () => {
+    document.getElementById('product-detail-modal').classList.remove('open');
+  };
+}
+
+const pdModal = document.getElementById('product-detail-modal');
+if (pdModal) {
+  pdModal.onclick = (e) => {
+    if (e.target === pdModal) {
+      pdModal.classList.remove('open');
+    }
+  };
+}
+
+// Modal minus button click
+const pdQtyMinusBtn = document.getElementById('pd-qty-minus');
+if (pdQtyMinusBtn) {
+  pdQtyMinusBtn.onclick = () => {
+    if (currentDetailQty > 1) {
+      currentDetailQty--;
+      document.getElementById('pd-qty-value').textContent = currentDetailQty;
+      
+      const cartItem = state.cart.find(item => item.product_id === currentDetailProductId);
+      if (cartItem) {
+        changeQty(currentDetailProductId, -1);
+      }
+    }
+  };
+}
+
+// Modal plus button click
+const pdQtyPlusBtn = document.getElementById('pd-qty-plus');
+if (pdQtyPlusBtn) {
+  pdQtyPlusBtn.onclick = () => {
+    currentDetailQty++;
+    document.getElementById('pd-qty-value').textContent = currentDetailQty;
+    
+    const cartItem = state.cart.find(item => item.product_id === currentDetailProductId);
+    if (cartItem) {
+      changeQty(currentDetailProductId, 1);
+    }
+  };
+}
+
+// Modal Action button click (Savatga qo'shish / Savatdan o'chirish)
+const pdActionBtn = document.getElementById('pd-action-btn');
+if (pdActionBtn) {
+  pdActionBtn.onclick = () => {
+    const p = state.products.find(x => x.id === currentDetailProductId);
+    if (!p) return;
+    
+    const cartItem = state.cart.find(item => item.product_id === currentDetailProductId);
+    if (cartItem) {
+      // Remove from cart
+      state.cart = state.cart.filter(item => item.product_id !== currentDetailProductId);
+      renderCart();
+      pdModal.classList.remove('open');
+    } else {
+      // Add to cart with currentDetailQty
+      state.cart.push({ product_id: p.id, name: p.name, price: p.price, qty: currentDetailQty });
+      renderCart();
+      pdModal.classList.remove('open');
+    }
+  };
+}
+
 
 // ---------- Savat ----------
 function addToCart(productId) {
@@ -715,7 +911,7 @@ document.getElementById('receipt-close').onclick = () => {
 
 // ---------- Modallarni Yopish Helper ----------
 function closeAllModals() {
-  const modals = ['dashboard-modal', 'reports-modal', 'warehouse-modal', 'customers-modal', 'menu-edit-modal', 'receipt-modal'];
+  const modals = ['dashboard-modal', 'reports-modal', 'warehouse-modal', 'customers-modal', 'menu-edit-modal', 'receipt-modal', 'product-detail-modal'];
   modals.forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('open');

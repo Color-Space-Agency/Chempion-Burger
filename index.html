@@ -570,6 +570,40 @@
     <span>Jami: <b id="float-cart-total">0 so'm</b></span>
   </div>
 
+  <!-- Product Detail Modal -->
+  <div class="modal" id="product-detail-modal">
+    <div class="modal-card product-detail-card">
+      <div class="modal-head">
+        <button class="modal-back" id="product-detail-back">← Orqaga</button>
+        <h2>Taom Tafsilotlari</h2>
+        <button class="modal-x" id="product-detail-close">✕</button>
+      </div>
+      
+      <div class="pd-image-wrapper">
+        <img src="" id="pd-image" alt="Product Image">
+      </div>
+      
+      <div class="pd-content">
+        <h1 id="pd-title">Taom nomi</h1>
+        <div class="pd-meta">
+          <span id="pd-price" class="pd-price">0 so'm</span>
+          <span class="pd-divider">•</span>
+          <span class="pd-extra">Tarkibi:</span>
+        </div>
+        <p id="pd-desc" class="pd-desc">Tarkibi...</p>
+      </div>
+      
+      <div class="pd-footer">
+        <div class="pd-qty-control">
+          <button class="pd-btn-qty" id="pd-qty-minus">−</button>
+          <span class="pd-qty-val" id="pd-qty-value">1</span>
+          <button class="pd-btn-qty" id="pd-qty-plus">+</button>
+        </div>
+        <button class="pd-btn-action" id="pd-action-btn">Savatga Qo'shish</button>
+      </div>
+    </div>
+  </div>
+
   </div> <!-- End of .app-container -->
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
