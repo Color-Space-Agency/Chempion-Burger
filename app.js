@@ -2829,7 +2829,7 @@ function handleMobileLayoutSwitch() {
       cartPanel.style.display = 'flex';
       floatingCart.style.display = 'none';
     } else {
-      menuPanel.style.display = 'block';
+      menuPanel.style.display = '';
       cartPanel.style.display = 'none';
       
       // Show floating cart button only if cart has items
@@ -2847,7 +2847,7 @@ function handleMobileLayoutSwitch() {
     mobileNav.style.display = 'none';
     floatingCart.style.display = 'none';
     mainLayout.classList.remove('mobile-stacked');
-    menuPanel.style.display = 'block';
+    menuPanel.style.display = '';
     cartPanel.style.display = 'flex';
   }
 }
