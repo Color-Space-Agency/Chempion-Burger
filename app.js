@@ -2460,6 +2460,21 @@ document.getElementById('floating-cart-btn').onclick = () => {
   document.getElementById('mnav-cart').click();
 };
 
+// Bind Cart back to Menu button
+const btnCartBack = document.getElementById('btn-cart-back');
+if (btnCartBack) {
+  btnCartBack.onclick = () => {
+    document.getElementById('mnav-menu').click();
+  };
+}
+
+// Bind Modal back buttons to close all modals
+document.querySelectorAll('.modal-back').forEach(btn => {
+  btn.onclick = () => {
+    closeAllModals();
+  };
+});
+
 // Window resize observer
 window.addEventListener('resize', handleMobileLayoutSwitch);
 

@@ -2391,7 +2391,7 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
   }
   
   .user-badge .profile-layout-selector .lay-btn {
-    padding: 0.25rem 0.4rem;
+    padding: 0.25rem 0.45rem;
     font-size: 0.75rem;
     border-radius: 6px;
   }
@@ -2400,10 +2400,55 @@ body:not(.sim-ipad):not(.sim-mobile) .floating-cart-btn {
   .user-badge .profile-layout-selector .lay-btn .lay-text {
     display: none !important;
   }
+
+  /* Back arrow buttons visible on mobile */
+  .modal-back, .btn-cart-back {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 159, 10, 0.08) !important;
+    border: 1px solid rgba(255, 159, 10, 0.2) !important;
+    color: var(--primary) !important;
+    padding: 0.45rem 0.8rem !important;
+    border-radius: 12px !important;
+    font-size: 0.82rem !important;
+    font-weight: 700 !important;
+    cursor: pointer !important;
+    margin-right: 0.8rem !important;
+    transition: var(--transition);
+  }
+  .modal-back:hover, .btn-cart-back:hover {
+    background: rgba(255, 159, 10, 0.15) !important;
+    transform: translateX(-2px);
+  }
+  
+  /* Hide close '✕' buttons on mobile modal headers to avoid redundancy */
+  .modal-x {
+    display: none !important;
+  }
+
+  /* Dashboard head adjustments on mobile */
+  .db-modal-head {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.8rem !important;
+    padding-bottom: 0.8rem !important;
+    margin-bottom: 1rem !important;
+  }
+  .db-controls {
+    width: 100% !important;
+    justify-content: space-between !important;
+    gap: 0.4rem !important;
+  }
+  .db-date-picker, .db-select {
+    flex: 1 !important;
+    padding: 0.4rem 0.6rem !important;
+    font-size: 0.78rem !important;
+  }
 }
 
-
-
-
-
+/* Hide back buttons on desktop */
+.modal-back, .btn-cart-back {
+  display: none !important;
+}
 
